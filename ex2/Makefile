@@ -18,7 +18,7 @@ TARNAME=ex2.tar
 TARSRCS=$(LIBSRC) Makefile README *.h
 
 all: $(LIBSRC)
-
+	$(CC) demo_itimer.c -o ./bin/demo_itimer
 $(TARGETS): $(LIBOBJ)
 	$(AR) $(ARFLAGS) $@ $^
 	$(RANLIB) $@
