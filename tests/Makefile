@@ -17,26 +17,21 @@ TARFLAGS=-cvf
 TARNAME=ex2.tar
 TARSRCS=$(LIBSRC) Makefile README *.h
 
+ex1:
 
+ex2: bin/ex2.o 
+	gcc bin/ex2.o ../ex2/bin/libuthreads.a -o ./bin/ex2test 
 
-lib: bin/libuthreads.o 
-	ar rcs bin/libuthreads.a  bin/libuthreads.o
+bin/ex2.o: ex2.c
+	gcc -c ex2.c -o bin/ex2.o -I../ex2 
 
+ex3:
 
-bin/libuthreads.o: uthreads.c uthreads.h
-	gcc -c -o bin/libuthreads.o uthreads.c
+ex4:
 
-clean:
-	rm -f *.o *.a $(TARGET)
+ex5:
 
-
-
-
-all: $(LIBSRC)
-	$(CC) demo_itimer.c -o ./bin/demo_itimer
-$(TARGETS): $(LIBOBJ)
-	$(AR) $(ARFLAGS) $@ $^
-	$(RANLIB) $@
+all: ex1, ex2, ex3, ex4, ex5
 
 clean:
 	$(RM) $(TARGETS) $(OSMLIB) *.o *~ *core

@@ -1,4 +1,4 @@
-#include "utherads.h"
+#include "uthreads.h"
 
 /*
  * Description: This function initializes the thread library.
