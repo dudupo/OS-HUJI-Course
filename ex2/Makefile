@@ -1,30 +1,30 @@
-CC=g++
-CXX=g++
+CC=gcc
+CXX=gcc
 RANLIB=ranlib
 
-LIBSRC=MapReduceFramework.cpp Barrier.cpp
+LIBSRC=*.c 
 LIBOBJ=$(LIBSRC:.cpp=.o)
 
 INCS=-I.
-CFLAGS = -Wall -std=c++11 -fpermissive  -g $(INCS) 
-CXXFLAGS = -Wall -std=c++11 -fpermissive  -g $(INCS) 
+CFLAGS = -Wall -fpermissive  -g $(INCS) 
+CXXFLAGS = -Wall -fpermissive  -g $(INCS) 
 
-OSMLIB = libMapReduceFramework.a
+OSMLIB = libuthreads.a
 TARGETS = $(OSMLIB)
 
 TAR=tar
 TARFLAGS=-cvf
-TARNAME=ex5.tar
-TARSRCS=$(LIBSRC) Makefile README Barrier.h
+TARNAME=ex2.tar
+TARSRCS=$(LIBSRC) Makefile README *.h
 
-all: $(TARGETS)
+all: $(LIBSRC)
 
 $(TARGETS): $(LIBOBJ)
 	$(AR) $(ARFLAGS) $@ $^
 	$(RANLIB) $@
 
 clean:
-	$(RM) $(TARGETS) $(OSMLIB) $(OBJ) $(LIBOBJ) *~ *core
+	$(RM) $(TARGETS) $(OSMLIB) *.o *~ *core
 
 depend:
 	makedepend -- $(CFLAGS) -- $(SRC) $(LIBSRC)

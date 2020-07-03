@@ -1,0 +1,9 @@
+Host huji
+  HostName localhost
+  User davidponar
+  Port 22222
+  NumberOfPasswordPrompts 6
+  RequestTTY force
+Compression yes 
+# ssh://davidponar@localhost:22222
+
