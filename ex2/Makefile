@@ -19,11 +19,15 @@ TARSRCS=$(LIBSRC) Makefile README *.h
 
 
 
-lib: bin/libuthreads.o 
-	ar rcs bin/libuthreads.a  bin/libuthreads.o
+lib: bin/libuthreads.o bin/heap.o bin/list.o 
+	ar rcs bin/libuthreads.a  bin/libuthreads.o bin/heap.o bin/list.o 
 
+bin/heap.o:
+	gcc -c -o bin/heap.o datastructure/heap.c
+bin/list.o: list.c
+	gcc -c -o bin/list.o datastructure/list.c
 
-bin/libuthreads.o: uthreads.c uthreads.h
+bin/libuthreads.o: uthreads.c uthreads.h 
 	gcc -c -o bin/libuthreads.o uthreads.c
 
 clean:

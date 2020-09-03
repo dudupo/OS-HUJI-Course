@@ -1,4 +1,56 @@
 #include "uthreads.h"
+#include "list.h"
+#include "heap.h"
+#include "p_uthreads.h"
+#include "stdlib.h"
+#include "string.h"
+
+#include <setjmp.h>
+#include <signal.h>
+#include <unistd.h>
+#include <sys/time.h>
+
+#define DEBUG
+
+#ifdef DEBUG
+#include "stdio.h"
+
+#define DEBUG_PRINT(x)\
+    printf(x);
+
+#else
+#define DEBUG_PRINT(x) ;
+#endif
+
+
+struct {
+    int size;
+    int * p_quantum_usecs;
+    void (*threads)(void);
+
+} mem_manager;
+
+
+void mem_manger_main() 
+{
+    /*
+
+        p1 ... 
+
+        interval -> calling 
+
+        while ( list... ) 
+        {
+            while( not_timeend )
+            {
+
+            }
+        }
+    */
+    
+} 
+
+
 
 /*
  * Description: This function initializes the thread library.
@@ -11,6 +63,34 @@
 */
 int uthread_init(int *quantum_usecs, int size)
 {
+    DEBUG_PRINT("uthread_init::\n")
+
+    if ( size < 0 | quantum_usecs == NULL)
+    {
+        return -1;
+    }
+
+    mem_manager.p_quantum_usecs = (int *) malloc( size );
+    
+
+    if ( mem_manager.p_quantum_usecs == NULL)
+    {
+        DEBUG_PRINT("malloc::p_quantum_usecs\n")
+        return -1;
+    }
+
+    mem_manager.size = size;
+
+    char const * ptr = (char const *) quantum_usecs;
+    char * p_iter = (char *) mem_manager.p_quantum_usecs;
+    
+    while ( ptr < ((char const *) quantum_usecs + size) )
+    {
+        *p_iter = *ptr;
+        p_iter++; ptr++;
+    }
+
+    memcpy(mem_manager.p_quantum_usecs, quantum_usecs, size);
     return 0;
 }
 
@@ -27,6 +107,10 @@ int uthread_init(int *quantum_usecs, int size)
 */
 int uthread_spawn(void (*f)(void), int priority)
 {
+
+    
+
+
     return 0;
 }
 
