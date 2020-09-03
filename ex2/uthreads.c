@@ -1,9 +1,13 @@
+<<<<<<< HEAD
 #include "utherads.h"
 #include "stdlib.h"
 
 
 static int * p_quantum_usecs;
 
+=======
+#include "uthreads.h"
+>>>>>>> 434f00d592a92fc0febd0feaa09f32f973ce160c
 
 /*
  * Description: This function initializes the thread library.
