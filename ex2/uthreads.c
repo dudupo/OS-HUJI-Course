@@ -1,4 +1,9 @@
 #include "utherads.h"
+#include "stdlib.h"
+
+
+static int * p_quantum_usecs;
+
 
 /*
  * Description: This function initializes the thread library.
@@ -11,6 +16,9 @@
 */
 int uthread_init(int *quantum_usecs, int size)
 {
+    
+
+
     return 0;
 }
 
