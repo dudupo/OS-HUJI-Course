@@ -51,7 +51,15 @@ list* pop( list ** p_list)
         return NULL;
     }
     list * ret = *p_list;
-    (*p_list) = (*p_list)->next;
+
+    if ( (*p_list)->next == NULL )
+    {
+        *p_list = NULL; 
+    }
+    else
+    {
+        *p_list = (*p_list)->next;
+    }
     return ret; 
 }
 

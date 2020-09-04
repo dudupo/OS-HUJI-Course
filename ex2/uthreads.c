@@ -97,18 +97,7 @@ int uthread_init(int *quantum_usecs, int size)
     }
 
     mem_manager.size = size;
-
-    // char const * ptr = (char const *) quantum_usecs;
-    // char * p_iter = (char *) mem_manager.p_quantum_usecs;
-    
-    // while ( ptr < ((char const *) quantum_usecs + size) )
-    // {
-    //     *p_iter = *ptr;
-    //     p_iter++; ptr++;
-    // }
-
     memcpy(mem_manager.p_quantum_usecs, quantum_usecs, size);
-
     mem_manager.threads = (list ** ) malloc( sizeof( list **) * size );
     
     for (int index = 0; index < size; index++ )
@@ -121,12 +110,12 @@ int uthread_init(int *quantum_usecs, int size)
 
 int nodelist2id( list* p_node )
 {
-    return (int) (( void * ) p_node );
+    return (int) (( void * ) p_node - ((void *) mem_manager.threads[0]));
 }
 
 list* id2nodelist (int tid)
 {
-    return ( list*) ((void *) tid );
+    return ( list*) ( ( (void *) mem_manager.threads[0]) + tid);
 }
 
 int priority_validity(int priority)
