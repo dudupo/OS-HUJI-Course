@@ -1,13 +1,72 @@
-<<<<<<< HEAD
-#include "utherads.h"
-#include "stdlib.h"
+#include <setjmp.h>
+#include <signal.h>
+#include <unistd.h>
+#include <sys/time.h>
 
-
-static int * p_quantum_usecs;
-
-=======
 #include "uthreads.h"
->>>>>>> 434f00d592a92fc0febd0feaa09f32f973ce160c
+#include "p_uthreads.h"
+#include "datastructures/list.h"
+#include "stdlib.h"
+#include "string.h"
+
+
+#define DEBUG
+
+#ifdef DEBUG
+#include "stdio.h"
+
+#define DEBUG_PRINT(x)\
+    printf(x);
+
+#else
+#define DEBUG_PRINT(x) ;
+#endif
+
+
+struct {
+
+    int size;
+    int * p_quantum_usecs;
+    list ** threads;
+    list* current; 
+
+} mem_manager;
+
+
+struct {
+    const int SUCCESS ;
+    const int FAILURE ;
+} CODES = { 0 , -1};
+
+
+
+void mem_manager_main() 
+{
+
+
+    /*
+
+        thread1->thread2-> [ end, change the time interval  ]
+
+
+        p1 ... 
+
+        interval -> calling 
+
+
+
+        while ( list... ) 
+        {
+            while( not_timeend )
+            {
+
+            }
+        }
+    */
+    
+} 
+
+
 
 /*
  * Description: This function initializes the thread library.
@@ -20,11 +79,65 @@ static int * p_quantum_usecs;
 */
 int uthread_init(int *quantum_usecs, int size)
 {
+    DEBUG_PRINT("uthread_init::\n")
+
+    if ( size < 0 | quantum_usecs == NULL)
+    {
+        return CODES.FAILURE;
+    }
+    
+    // threads[2j] -> blocked threads with priority j.
+    mem_manager.p_quantum_usecs = (int *) malloc( size );
     
 
+    if ( mem_manager.p_quantum_usecs == NULL)
+    {
+        DEBUG_PRINT("malloc::p_quantum_usecs\n")
+        return CODES.FAILURE;
+    }
 
-    return 0;
+    mem_manager.size = size;
+
+    // char const * ptr = (char const *) quantum_usecs;
+    // char * p_iter = (char *) mem_manager.p_quantum_usecs;
+    
+    // while ( ptr < ((char const *) quantum_usecs + size) )
+    // {
+    //     *p_iter = *ptr;
+    //     p_iter++; ptr++;
+    // }
+
+    memcpy(mem_manager.p_quantum_usecs, quantum_usecs, size);
+
+    mem_manager.threads = (list ** ) malloc( sizeof( list **) * size );
+    
+    for (int index = 0; index < size; index++ )
+    {
+        mem_manager.threads[index] = ( list * ) malloc( sizeof( list ) );
+    }
+
+    return CODES.SUCCESS;
 }
+
+int nodelist2id( list* p_node )
+{
+    return (int) (( void * ) p_node );
+}
+
+list* id2nodelist (int tid)
+{
+    return ( list*) ((void *) tid );
+}
+
+int priority_validity(int priority)
+{
+    if ( priority < 0 || priority >= mem_manager.size)
+    {
+        return CODES.FAILURE; 
+    }
+    return CODES.SUCCESS;
+}
+
 
 /*
  * Description: This function creates a new thread, whose entry point is the
@@ -39,7 +152,21 @@ int uthread_init(int *quantum_usecs, int size)
 */
 int uthread_spawn(void (*f)(void), int priority)
 {
-    return 0;
+    if ( priority_validity(priority) == CODES.FAILURE )
+    {
+        return CODES.FAILURE; 
+    }
+    
+    p_uthreads * warpper = init_p_uthreads(f, priority);    
+    DEBUG_PRINT("p_uthreads initilaized: ")
+
+    list * p_node = push(&mem_manager.threads[priority], warpper); 
+    #ifdef DEBUG
+        printf( "%d\n" , nodelist2id(p_node ) );
+    #endif
+    
+    DEBUG_PRINT("p_uthreads pushed into list\n")
+    return nodelist2id( p_node );    
 }
 
 
@@ -51,7 +178,23 @@ int uthread_spawn(void (*f)(void), int priority)
 */
 int uthread_change_priority(int tid, int priority)
 {
-    return 0;
+    if ( priority_validity(priority) == CODES.FAILURE )
+    {
+        return CODES.FAILURE; 
+    }
+    
+    // todo, implement a set.. and check validity. 
+    list* p_list = id2nodelist(tid);
+     // after poping, p_list has changed ( points to the precding node).
+    list* orignal_node = pop(&p_list);
+
+    if ( orignal_node == NULL )
+    {
+        return CODES.FAILURE;
+    }
+
+    pushnode(&mem_manager.threads[priority], orignal_node);
+    return CODES.SUCCESS;
 }
 
 
@@ -68,7 +211,7 @@ int uthread_change_priority(int tid, int priority)
 */
 int uthread_terminate(int tid)
 {
-    return 0;
+    return CODES.SUCCESS;
 }
 
 
@@ -83,7 +226,14 @@ int uthread_terminate(int tid)
 */
 int uthread_block(int tid)
 {
-    return 0;
+    if ( tid == 0 )
+    {
+        return CODES.FAILURE;
+    }
+
+    list* p_list = id2nodelist(tid);
+    p_list->val->blocked = 1;
+    return CODES.SUCCESS;
 }
 
 
@@ -96,7 +246,9 @@ int uthread_block(int tid)
 */
 int uthread_resume(int tid)
 {
-    return 0;
+    list* p_list = id2nodelist(tid);
+    p_list->val->blocked = 0;
+    return CODES.SUCCESS;
 }
 
 
@@ -106,7 +258,7 @@ int uthread_resume(int tid)
 */
 int uthread_get_tid()
 {
-    return 0;
+    return nodelist2id(mem_manager.current);
 }
 
 

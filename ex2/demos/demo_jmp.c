@@ -110,7 +110,7 @@ void setup(void)
   (env[0]->__jmpbuf)[JB_PC] = translate_address(pc);
   sigemptyset(&env[0]->__saved_mask);     
 
-  sp = (address_t)stack2 + STACK_SIZE - sizeof(address_t);
+  sp = (address_t)stack1 + STACK_SIZE - sizeof(address_t);
   pc = (address_t)g;
   sigsetjmp(env[1], 1);
   (env[1]->__jmpbuf)[JB_SP] = translate_address(sp);
