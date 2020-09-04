@@ -194,7 +194,7 @@ int uthread_change_priority(int tid, int priority)
         return CODES.FAILURE;
     }
 
-    pushnode(mem_manager.threads[priority], orignal_node);
+    pushnode(&mem_manager.threads[priority], orignal_node);
     return CODES.SUCCESS;
 }
 

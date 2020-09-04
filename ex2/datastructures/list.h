@@ -3,8 +3,6 @@
 
 #include "../p_uthreads.h"
 
-const int OS_LIST_POP_ERROR = -1;
-
 struct struct_list
 {
     struct struct_list * next;
