@@ -1,13 +1,26 @@
 #ifndef OS_LIST
 #define OS_LIST
 
+#include "../p_uthreads.h"
 
 const int OS_LIST_POP_ERROR = -1;
 
-typedef struct struct_list t_list;
+struct struct_list
+{
+    struct struct_list * next;
+    p_uthreads * val; 
+};
 
-void push(t_list * p_list, int tid);
-int pop(t_list ** p_list);
+typedef struct struct_list list;
+
+list* push(list **, p_uthreads *);
+list* pushnode(list **, list *);
+
+list* pop(list ** );
+
+// temporary implemantion.
+p_uthreads * get(list*, int );
+
 
 
 #endif

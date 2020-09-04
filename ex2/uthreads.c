@@ -1,7 +1,6 @@
 #include "uthreads.h"
-#include "list.h"
-#include "heap.h"
 #include "p_uthreads.h"
+#include "./datastructure/list.h"
 #include "stdlib.h"
 #include "string.h"
 
@@ -24,20 +23,36 @@
 
 
 struct {
+
     int size;
     int * p_quantum_usecs;
-    void (*threads)(void);
+    t_list ** theards;
+    t_list* current; 
 
 } mem_manager;
 
 
-void mem_manger_main() 
+struct {
+    const int SUCCESS = 0;
+    const int FAILURE = -1;
+} CODES;
+
+
+
+void mem_manager_main() 
 {
+
+
     /*
+
+        thread1->thread2-> [ end, change the time interval  ]
+
 
         p1 ... 
 
         interval -> calling 
+
+
 
         while ( list... ) 
         {
@@ -67,32 +82,62 @@ int uthread_init(int *quantum_usecs, int size)
 
     if ( size < 0 | quantum_usecs == NULL)
     {
-        return -1;
+        return CODES.FAILURE;
     }
-
+    
+    // threads[2j] -> blocked threads with priority j.
     mem_manager.p_quantum_usecs = (int *) malloc( size );
     
 
     if ( mem_manager.p_quantum_usecs == NULL)
     {
         DEBUG_PRINT("malloc::p_quantum_usecs\n")
-        return -1;
+        return CODES.FAILURE;
     }
 
     mem_manager.size = size;
 
-    char const * ptr = (char const *) quantum_usecs;
-    char * p_iter = (char *) mem_manager.p_quantum_usecs;
+    // char const * ptr = (char const *) quantum_usecs;
+    // char * p_iter = (char *) mem_manager.p_quantum_usecs;
     
-    while ( ptr < ((char const *) quantum_usecs + size) )
-    {
-        *p_iter = *ptr;
-        p_iter++; ptr++;
-    }
+    // while ( ptr < ((char const *) quantum_usecs + size) )
+    // {
+    //     *p_iter = *ptr;
+    //     p_iter++; ptr++;
+    // }
 
     memcpy(mem_manager.p_quantum_usecs, quantum_usecs, size);
-    return 0;
+
+    
+    int index = 0;
+    for (int * ptr = quantum_usecs; ptr != NULL; ptr++ )
+    {
+        mem_manager.threads[index] = ( list  ) malloc( sizeof( list ) );
+        index++;
+    }
+
+    return CODES.SUCCESS;
 }
+
+int nodelist2id( list* p_node )
+{
+    return (int) (( void * ) p_node );
+}
+
+list* id2nodelist (int tid)
+{
+    return ( list*) ((void *) tid );
+}
+
+bool priority_validity(int priority)
+{
+    if ( priority < 0 || priority >= mem_manager.size)
+    {
+        return CODES.FAILURE; 
+    }
+    return CODES.SUCSSES;
+}
+
 
 /*
  * Description: This function creates a new thread, whose entry point is the
@@ -107,11 +152,21 @@ int uthread_init(int *quantum_usecs, int size)
 */
 int uthread_spawn(void (*f)(void), int priority)
 {
-
+    if ( priority_validity(priority) == CODES.FAILURE )
+    {
+        return CODES.FAILURE; 
+    }
     
+    p_uthreads * warpper = init_p_uthreads(f, priority);    
+    DEBUG_PRINT("p_uthreads initilaized: ")
 
-
-    return 0;
+    list * p_node = push(mem_manager.threads[priority], warpper); 
+    #ifdef DEBUG
+        printf( "%d\n" , nodelist2id(p_node ) ))
+    #endif
+    
+    DEBUG_PRINT("p_uthreads pushed into list\n")
+    return nodelist2id( p_node );    
 }
 
 
@@ -123,7 +178,18 @@ int uthread_spawn(void (*f)(void), int priority)
 */
 int uthread_change_priority(int tid, int priority)
 {
-    return 0;
+    if ( priority_validity(priority) == CODES.FAILURE )
+    {
+        return CODES.FAILURE; 
+    }
+    
+    // todo, implement a set.. and check validity. 
+    list* p_list = id2nodelist(tid);
+     // after poping, p_list has changed ( points to the precding node).
+    list* orignal_node = pop(&p_list);  
+
+    pushnode(mem_manager.threads[priority], orignal_node);
+    return CODES.SUCSSES;
 }
 
 
@@ -140,7 +206,7 @@ int uthread_change_priority(int tid, int priority)
 */
 int uthread_terminate(int tid)
 {
-    return 0;
+    return CODES.SUCSSES;
 }
 
 
@@ -155,7 +221,14 @@ int uthread_terminate(int tid)
 */
 int uthread_block(int tid)
 {
-    return 0;
+    if ( tid == 0 )
+    {
+        return CODES.FAILURE;
+    }
+
+    list* p_list = id2nodelist(tid);
+    p_list->value->blocked = 1;
+    return CODES.SUCSSES;
 }
 
 
@@ -168,7 +241,9 @@ int uthread_block(int tid)
 */
 int uthread_resume(int tid)
 {
-    return 0;
+    list* p_list = id2nodelist(tid);
+    p_list->value->blocked = 0;
+    return CODES.SUCSSES;
 }
 
 
@@ -178,7 +253,7 @@ int uthread_resume(int tid)
 */
 int uthread_get_tid()
 {
-    return 0;
+    return nodelist2id(mem_manager.current);
 }
 
 

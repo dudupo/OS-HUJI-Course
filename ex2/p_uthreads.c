@@ -50,13 +50,9 @@ address_t translate_address(address_t addr)
 
 #endif
 
-struct pointer_uthreads {
-    void (*func) (void);
-    char stack[STACK_SIZE];
-    sigjmp_buf env;
-};
 
-p_uthreads * init_p_uthreads( void (*func) (void)  )
+
+p_uthreads * init_p_uthreads( void (*func) (void), int priority)
 {
     p_uthreads * p_obj = malloc( sizeof( p_uthreads ) );
 
@@ -64,8 +60,10 @@ p_uthreads * init_p_uthreads( void (*func) (void)  )
     {
         // todo
     }
-
+    p_obj->stack = malloc ( STACK_SIZE * sizeof(char));
     p_obj->func = func;
+    p_obj->priority = priority; 
+    p_obj->blocked = 0;
     address_t sp, pc;
 
     sp = (address_t)p_obj->stack + STACK_SIZE - sizeof(address_t);
@@ -92,6 +90,10 @@ void timer_handler(int sig)
 void execute(p_uthreads * p_obj)
 {
     // loading the env
+
+    if ( p_obj->blocked )
+        return;
+
     siglongjmp(p_obj->env,1);
     int ret_val = sigsetjmp(p_obj->env, 1);
     printf("SWITCH: ret_val=%d\n", ret_val); 
