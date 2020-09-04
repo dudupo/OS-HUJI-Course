@@ -1,6 +1,13 @@
 OS COURSE Huji-2021.
 =========
 
+Status
+----
+
+The current problem that I am working on Is casting between address ( in their pure state ) and objects. It seams like I loose the first fourth bytes. (which was excepted ).   
+
+![gdb ex2](ex2/firstbug.png)
+
 Connecting to the Aquarium ( :tropical_fish: )
 ---
 
