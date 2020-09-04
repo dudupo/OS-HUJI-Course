@@ -109,12 +109,11 @@ int uthread_init(int *quantum_usecs, int size)
 
     memcpy(mem_manager.p_quantum_usecs, quantum_usecs, size);
 
+    mem_manager.threads = (list ** ) malloc( sizeof( list **) * size );
     
-    int index = 0;
-    for (int * ptr = quantum_usecs; ptr != NULL; ptr++ )
+    for (int index = 0; index < size; index++ )
     {
         mem_manager.threads[index] = ( list * ) malloc( sizeof( list ) );
-        index++;
     }
 
     return CODES.SUCCESS;
