@@ -1,6 +1,11 @@
 #ifndef OS_P_UTHREADS
 #define OS_P_UTHREADS
 
+#include <setjmp.h>
+#include <signal.h>
+#include <unistd.h>
+#include <sys/time.h>
+
 
 struct pointer_uthreads {
     void (*func) (void);

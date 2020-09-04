@@ -1,13 +1,14 @@
-#include "uthreads.h"
-#include "p_uthreads.h"
-#include "./datastructure/list.h"
-#include "stdlib.h"
-#include "string.h"
-
 #include <setjmp.h>
 #include <signal.h>
 #include <unistd.h>
 #include <sys/time.h>
+
+#include "uthreads.h"
+#include "p_uthreads.h"
+#include "datastructures/list.h"
+#include "stdlib.h"
+#include "string.h"
+
 
 #define DEBUG
 
@@ -26,16 +27,16 @@ struct {
 
     int size;
     int * p_quantum_usecs;
-    t_list ** theards;
-    t_list* current; 
+    list ** threads;
+    list* current; 
 
 } mem_manager;
 
 
 struct {
-    const int SUCCESS = 0;
-    const int FAILURE = -1;
-} CODES;
+    const int SUCCESS ;
+    const int FAILURE ;
+} CODES = { 0 , -1};
 
 
 
@@ -112,7 +113,7 @@ int uthread_init(int *quantum_usecs, int size)
     int index = 0;
     for (int * ptr = quantum_usecs; ptr != NULL; ptr++ )
     {
-        mem_manager.threads[index] = ( list  ) malloc( sizeof( list ) );
+        mem_manager.threads[index] = ( list * ) malloc( sizeof( list ) );
         index++;
     }
 
@@ -129,13 +130,13 @@ list* id2nodelist (int tid)
     return ( list*) ((void *) tid );
 }
 
-bool priority_validity(int priority)
+int priority_validity(int priority)
 {
     if ( priority < 0 || priority >= mem_manager.size)
     {
         return CODES.FAILURE; 
     }
-    return CODES.SUCSSES;
+    return CODES.SUCCESS;
 }
 
 
@@ -160,9 +161,9 @@ int uthread_spawn(void (*f)(void), int priority)
     p_uthreads * warpper = init_p_uthreads(f, priority);    
     DEBUG_PRINT("p_uthreads initilaized: ")
 
-    list * p_node = push(mem_manager.threads[priority], warpper); 
+    list * p_node = push(&mem_manager.threads[priority], warpper); 
     #ifdef DEBUG
-        printf( "%d\n" , nodelist2id(p_node ) ))
+        printf( "%d\n" , nodelist2id(p_node ) );
     #endif
     
     DEBUG_PRINT("p_uthreads pushed into list\n")
@@ -186,10 +187,15 @@ int uthread_change_priority(int tid, int priority)
     // todo, implement a set.. and check validity. 
     list* p_list = id2nodelist(tid);
      // after poping, p_list has changed ( points to the precding node).
-    list* orignal_node = pop(&p_list);  
+    list* orignal_node = pop(&p_list);
+
+    if ( orignal_node == NULL )
+    {
+        return CODES.FAILURE;
+    }
 
     pushnode(mem_manager.threads[priority], orignal_node);
-    return CODES.SUCSSES;
+    return CODES.SUCCESS;
 }
 
 
@@ -206,7 +212,7 @@ int uthread_change_priority(int tid, int priority)
 */
 int uthread_terminate(int tid)
 {
-    return CODES.SUCSSES;
+    return CODES.SUCCESS;
 }
 
 
@@ -227,8 +233,8 @@ int uthread_block(int tid)
     }
 
     list* p_list = id2nodelist(tid);
-    p_list->value->blocked = 1;
-    return CODES.SUCSSES;
+    p_list->val->blocked = 1;
+    return CODES.SUCCESS;
 }
 
 
@@ -242,8 +248,8 @@ int uthread_block(int tid)
 int uthread_resume(int tid)
 {
     list* p_list = id2nodelist(tid);
-    p_list->value->blocked = 0;
-    return CODES.SUCSSES;
+    p_list->val->blocked = 0;
+    return CODES.SUCCESS;
 }
 
 

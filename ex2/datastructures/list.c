@@ -16,7 +16,7 @@ list* push(list ** p_list, p_uthreads * p_obj)
     }
     else 
     {
-        push((*p_list)->next, p_obj);
+        push(&((*p_list)->next), p_obj);
     }
 }
 
@@ -40,7 +40,7 @@ list* pushnode(list ** p_list, list* node)
     }
     else 
     {
-        push((*p_list)->next, node);
+        pushnode(&((*p_list)->next), node);
     }
 }
 
@@ -48,7 +48,7 @@ list* pop( list ** p_list)
 {
     if (p_list == NULL || *p_list == NULL)
     {
-        return OS_LIST_POP_ERROR;
+        return NULL;
     }
     list * ret = *p_list;
     (*p_list) = (*p_list)->next;
