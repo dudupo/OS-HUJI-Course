@@ -5,6 +5,8 @@
 #include <signal.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <wait.h>
+#include "string.h"
 
 #define STACK_SIZE 4096
 
@@ -50,6 +52,7 @@ address_t translate_address(address_t addr)
 
 #endif
 
+const char POINTER_UTHREADS_SIGNATURE[17] = "pointer_uthreads\0";
 
 
 p_uthreads * init_p_uthreads( void (*func) (void), int priority)
@@ -60,6 +63,9 @@ p_uthreads * init_p_uthreads( void (*func) (void), int priority)
     {
         // todo
     }
+
+    memcpy(p_obj->signature, POINTER_UTHREADS_SIGNATURE, sizeof(char) * 17);
+
     p_obj->stack = malloc ( STACK_SIZE * sizeof(char));
     p_obj->func = func;
     p_obj->priority = priority; 
@@ -102,6 +108,61 @@ void execute(p_uthreads * p_obj)
     }
 }
 
+
+void catch_int(int sigNum) 
+{
+	// Install catch_int as the signal handler for SIGINT.
+	printf(" Cannot access memory \n");
+    exit(1);
+}
+
+
+int strcmp_eq(char * str1, const char * str2)
+{
+
+    struct sigaction sa;
+    sa.sa_handler = &catch_int;
+
+    int ret;
+
+    if (sigaction(SIGSEGV, &sa, NULL) < 0) 
+    {
+		printf("sigaction error.");
+        return 1;
+	}
+
+    int pid = fork();
+
+    if ( pid == 0 ) 
+    {
+        for(int index = 0 ;  str2[index]  != '\0' ; index++ )
+        {
+            if ( (str1 == NULL) || (*str1 != str2[index]) )
+            {
+                exit(1);
+            }
+            str1++;
+        }
+        exit(0);
+    }
+    else
+    {
+        waitpid(pid, &ret, WUNTRACED | WCONTINUED);     
+        if (sigaction(SIGSEGV, SIG_DFL, NULL) < 0) 
+        {
+            printf("sigaction error.");
+            return 1;
+        }
+        printf("exited, status=%d\n", WEXITSTATUS(ret));
+        return WEXITSTATUS(ret);
+    }
+}
+
+int is_p_uthreads(p_uthreads * p_obj)
+{
+    int ret = strcmp_eq(p_obj->signature, POINTER_UTHREADS_SIGNATURE);
+    return ret;
+}
 
 
 

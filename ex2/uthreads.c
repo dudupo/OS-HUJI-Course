@@ -174,6 +174,12 @@ int uthread_change_priority(int tid, int priority)
     
     // todo, implement a set.. and check validity. 
     list* p_list = id2nodelist(tid);
+
+    if ( p_list == NULL || (is_p_uthreads(p_list->val) != 0) )
+    {
+        return CODES.FAILURE;
+    }
+
      // after poping, p_list has changed ( points to the precding node).
     list* orignal_node = pop(&p_list);
 
