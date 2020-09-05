@@ -113,9 +113,21 @@ int nodelist2id( list* p_node )
     return (int) (( void * ) p_node - ((void *) mem_manager.threads[0]));
 }
 
-list* id2nodelist (int tid)
+list* id2adrress(int tid)
 {
     return ( list*) ( ( (void *) mem_manager.threads[0]) + tid);
+}
+
+list* id2nodelist(int tid)
+{
+    list* p_list = id2adrress(tid);
+
+    if ( p_list == NULL || (is_p_uthreads(p_list->val) != 0) )
+    {
+        return NULL;
+    }
+
+    return p_list;
 }
 
 int priority_validity(int priority)
@@ -172,10 +184,9 @@ int uthread_change_priority(int tid, int priority)
         return CODES.FAILURE; 
     }
     
-    // todo, implement a set.. and check validity. 
     list* p_list = id2nodelist(tid);
 
-    if ( p_list == NULL || (is_p_uthreads(p_list->val) != 0) )
+    if ( p_list == NULL )
     {
         return CODES.FAILURE;
     }
@@ -206,6 +217,22 @@ int uthread_change_priority(int tid, int priority)
 */
 int uthread_terminate(int tid)
 {
+    list* p_list = id2nodelist(tid);
+    
+    if ( p_list == NULL )
+    {
+        return CODES.FAILURE;
+    }
+
+    list* orignal_node = pop(&p_list);
+
+    if ( orignal_node == NULL )
+    {
+        return CODES.FAILURE;
+    }
+
+    orignal_node->val->signature[0] = '\0';
+
     return CODES.SUCCESS;
 }
 
@@ -227,6 +254,12 @@ int uthread_block(int tid)
     }
 
     list* p_list = id2nodelist(tid);
+
+    if ( p_list == NULL )
+    {
+        return CODES.FAILURE;
+    }
+
     p_list->val->blocked = 1;
     return CODES.SUCCESS;
 }
@@ -242,6 +275,12 @@ int uthread_block(int tid)
 int uthread_resume(int tid)
 {
     list* p_list = id2nodelist(tid);
+
+    if ( p_list == NULL )
+    {
+        return CODES.FAILURE;
+    }
+
     p_list->val->blocked = 0;
     return CODES.SUCCESS;
 }
