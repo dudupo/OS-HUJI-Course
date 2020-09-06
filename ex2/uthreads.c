@@ -29,9 +29,12 @@ struct {
     int * p_quantum_usecs;
     list ** threads;
     list* current; 
-
+    int current_priority;
+    int runnerid;
+    
 } mem_manager;
 
+struct itimerval timer;
 
 struct {
     const int SUCCESS ;
@@ -40,30 +43,58 @@ struct {
 
 
 
+int gotit = 0;
+
+
+void update_current_thread( )
+{
+	if ( 	mem_manager.current != NULL &&
+	 		mem_manager.current->next != NULL  )
+  	{
+		mem_manager.current = mem_manager.current->next;
+	}
+	else
+ 	{
+		int last_priority = mem_manager.current_priority;  
+		do {
+			mem_manager.current_priority = ( mem_manager.current_priority + 1 ) % mem_manager.size;
+		} while( last_priority != mem_manager.current_priority && 
+			mem_manager.threads[mem_manager.current_priority] != NULL );
+	}
+}
+
+
+void timer_handler(int sig)
+{
+
+	update_current_thread();
+	if ( mem_manager.threads[mem_manager.current_priority] != NULL )
+	{
+		timer.it_interval.tv_sec = mem_manager.p_quantum_usecs[mem_manager.current_priority];
+		mem_manager.current = mem_manager.threads[mem_manager.current_priority];
+		execute( mem_manager.current->val );
+	}
+}
+
 void mem_manager_main() 
 {
 
+    struct sigaction sa;
 
-    /*
+	// Install timer_handler as the signal handler for SIGVTALRM.
+	sa.sa_handler = &timer_handler;
 
-        thread1->thread2-> [ end, change the time interval  ]
+	if (sigaction(SIGVTALRM, &sa,NULL) < 0) {
+		printf("sigaction error.");
+	}
 
+    timer.it_value.tv_sec =  1;		// first time interval, seconds part
+	timer.it_value.tv_usec = 0;		// first time interval, microseconds part
 
-        p1 ... 
-
-        interval -> calling 
-
-
-
-        while ( list... ) 
-        {
-            while( not_timeend )
-            {
-
-            }
-        }
-    */
-    
+	// Start a virtual timer. It counts down whenever this process is executing.
+	if (setitimer (ITIMER_VIRTUAL, &timer, NULL)) {
+		printf("setitimer error.");
+	}
 } 
 
 
@@ -99,12 +130,14 @@ int uthread_init(int *quantum_usecs, int size)
     mem_manager.size = size;
     memcpy(mem_manager.p_quantum_usecs, quantum_usecs, size);
     mem_manager.threads = (list ** ) malloc( sizeof( list **) * size );
-    
+    mem_manager.current_priority = 0;
+
     for (int index = 0; index < size; index++ )
     {
         mem_manager.threads[index] = ( list * ) malloc( sizeof( list ) );
     }
 
+	mem_manager_main(); 
     return CODES.SUCCESS;
 }
 
@@ -232,7 +265,7 @@ int uthread_terminate(int tid)
     }
 
     orignal_node->val->signature[0] = '\0';
-
+    free_p_uthreads(orignal_node->val);
     return CODES.SUCCESS;
 }
 

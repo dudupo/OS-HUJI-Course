@@ -23,6 +23,7 @@ typedef struct pointer_uthreads p_uthreads;
 
 p_uthreads * init_p_uthreads( void (*func) (void) ,int);
 void execute(p_uthreads * );
+void free_p_uthreads(p_uthreads * );
 int is_p_uthreads(p_uthreads * );
 
 #endif 

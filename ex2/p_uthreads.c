@@ -84,13 +84,7 @@ p_uthreads * init_p_uthreads( void (*func) (void), int priority)
 }
 
 
-int gotit = 0;
 
-void timer_handler(int sig)
-{
-  gotit = 1;
-  printf("Timer expired\n");
-}
 
 
 void execute(p_uthreads * p_obj)
@@ -164,5 +158,9 @@ int is_p_uthreads(p_uthreads * p_obj)
     return ret;
 }
 
-
+void free_p_uthreads(p_uthreads * p_obj)
+{
+    free( p_obj->stack);
+    free( p_obj );
+}
 
