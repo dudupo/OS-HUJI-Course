@@ -6,18 +6,15 @@
 
 list* push(list ** p_list, p_uthreads * p_obj)
 {
-    if ( *p_list == NULL )
-    {
-        *p_list = ( list * ) malloc ( sizeof( list ) );
-        (*p_list)->next = NULL;
-        (*p_list)->val = p_obj;
 
-        return *p_list;
-    }
-    else 
-    {
-        push(&((*p_list)->next), p_obj);
-    }
+    list* new_p_list = ( list * ) malloc ( sizeof( list ) );
+    new_p_list->next = *p_list ;
+    new_p_list->val = p_obj;
+
+    *p_list = new_p_list;
+
+    return *p_list;
+    
 }
 
 list* pushnode(list ** p_list, list* node)
@@ -30,18 +27,10 @@ list* pushnode(list ** p_list, list* node)
         *plist->next = node.  
         and then there will be another endcase.. when the list is empty.
     */
-
-
-    if ( *p_list == NULL )
-    {
-        *p_list = node;
-        (*p_list)->next = NULL;
-        return *p_list;
-    }
-    else 
-    {
-        pushnode(&((*p_list)->next), node);
-    }
+    node->next = *p_list;
+    *p_list = node;
+    return *p_list;
+    
 }
 
 list* pop( list ** p_list)

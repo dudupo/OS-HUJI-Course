@@ -19,10 +19,10 @@ TARSRCS=$(LIBSRC) Makefile README *.h
 
 ex1:
 
-ex2: bin/ex2.o ex2.c 
+ex2: bin/ex2.o  
 	gcc bin/ex2.o ../ex2/bin/libuthreads.a -o ./bin/ex2test 
 
-bin/ex2.o: #ex2.c
+bin/ex2.o: ex2.c
 	gcc -c -g ex2.c -o bin/ex2.o -I../ex2 -std=c17
 
 ex3:

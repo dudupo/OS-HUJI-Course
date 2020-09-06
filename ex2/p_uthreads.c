@@ -91,7 +91,9 @@ void execute(p_uthreads * p_obj)
 {
     // loading the env
 
-    if ( p_obj->blocked )
+    printf( "execute\n" );
+
+    if ( p_obj->blocked == 1)
         return;
 
     siglongjmp(p_obj->env,1);

@@ -31,10 +31,14 @@ struct {
     list* current; 
     int current_priority;
     int runnerid;
+	int runners;
     
 } mem_manager;
 
 struct itimerval timer;
+
+struct sigaction sa;
+
 
 struct {
     const int SUCCESS ;
@@ -55,11 +59,15 @@ void update_current_thread( )
 	}
 	else
  	{
-		int last_priority = mem_manager.current_priority;  
-		do {
-			mem_manager.current_priority = ( mem_manager.current_priority + 1 ) % mem_manager.size;
-		} while( last_priority != mem_manager.current_priority && 
-			mem_manager.threads[mem_manager.current_priority] != NULL );
+		mem_manager.current_priority = ( mem_manager.current_priority + 1 ) % mem_manager.size; 
+		
+		
+		// int last_priority = mem_manager.current_priority;  
+		// do {
+			
+		// } while( mem_manager.runners > 0 && 
+		// 	( 	mem_manager.threads[mem_manager.current_priority] == NULL ||
+		// 		mem_manager.threads[mem_manager.current_priority]->val == NULL ) );
 	}
 }
 
@@ -67,19 +75,27 @@ void update_current_thread( )
 void timer_handler(int sig)
 {
 
+	DEBUG_PRINT("timer_handler\n")
 	update_current_thread();
-	if ( mem_manager.threads[mem_manager.current_priority] != NULL )
+	if ( 	mem_manager.threads[mem_manager.current_priority] != NULL &&
+	  		mem_manager.threads[mem_manager.current_priority]->val != NULL  )
 	{
 		timer.it_interval.tv_sec = mem_manager.p_quantum_usecs[mem_manager.current_priority];
 		mem_manager.current = mem_manager.threads[mem_manager.current_priority];
+		
+	
 		execute( mem_manager.current->val );
 	}
+
+	// if (setitimer (ITIMER_VIRTUAL, &timer, NULL)) {
+	// 	printf("setitimer error.");
+	// }
 }
 
 void mem_manager_main() 
 {
 
-    struct sigaction sa;
+	DEBUG_PRINT("mem_manager_main\n")
 
 	// Install timer_handler as the signal handler for SIGVTALRM.
 	sa.sa_handler = &timer_handler;
@@ -88,8 +104,10 @@ void mem_manager_main()
 		printf("sigaction error.");
 	}
 
-    timer.it_value.tv_sec =  1;		// first time interval, seconds part
-	timer.it_value.tv_usec = 0;		// first time interval, microseconds part
+    timer.it_value.tv_sec =  0;		// first time interval, seconds part
+	timer.it_value.tv_usec = 1;		// first time interval, microseconds part
+	timer.it_interval.tv_sec = 1;	// following time intervals, seconds part
+	timer.it_interval.tv_usec = 0;	// following time intervals, microseconds part
 
 	// Start a virtual timer. It counts down whenever this process is executing.
 	if (setitimer (ITIMER_VIRTUAL, &timer, NULL)) {
@@ -112,15 +130,19 @@ int uthread_init(int *quantum_usecs, int size)
 {
     DEBUG_PRINT("uthread_init::\n")
 
-    if ( size < 0 | quantum_usecs == NULL)
+    if ( size < 0 | quantum_usecs == NULL | (sizeof(int) * size != sizeof(quantum_usecs)) )
     {
         return CODES.FAILURE;
     }
-    
-    // threads[2j] -> blocked threads with priority j.
-    mem_manager.p_quantum_usecs = (int *) malloc( size );
-    
 
+	for ( int index = 0; index < size; index++)
+	{
+		if ( quantum_usecs[index] <= 0 )
+		{
+			return CODES.FAILURE;
+		}
+	}
+    mem_manager.p_quantum_usecs = (int *) malloc( size );
     if ( mem_manager.p_quantum_usecs == NULL)
     {
         DEBUG_PRINT("malloc::p_quantum_usecs\n")
@@ -128,6 +150,7 @@ int uthread_init(int *quantum_usecs, int size)
     }
 
     mem_manager.size = size;
+	mem_manager.runners = 0;
     memcpy(mem_manager.p_quantum_usecs, quantum_usecs, size);
     mem_manager.threads = (list ** ) malloc( sizeof( list **) * size );
     mem_manager.current_priority = 0;
@@ -200,6 +223,7 @@ int uthread_spawn(void (*f)(void), int priority)
     #endif
     
     DEBUG_PRINT("p_uthreads pushed into list\n")
+	mem_manager.runners += 1; 
     return nodelist2id( p_node );    
 }
 

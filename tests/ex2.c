@@ -1,11 +1,15 @@
 #include "stdio.h"
 #include "uthreads.h"
+#include <unistd.h>
+#include <sys/time.h>
+
 /*
 
     heartbeat tests :
 
 
 */
+#define SECOND 1
 
 #define TEST( code ) \
     if (code) {\
@@ -27,22 +31,27 @@ int test_uthread_init( )
                     {1 , 2, 0}
                 };
     
-    TEST( uthread_init( A[0], 3 * sizeof(int)) == 0 ) 
-    TEST( uthread_init( A[1], 2 * sizeof(int)) == 0 )
-    TEST( uthread_init( A[1], -1 * sizeof(int)) == -1 )
-    TEST( uthread_init( A[2], 2 * sizeof(int)) == -1 )
-    TEST( uthread_init( A[3], 3 * sizeof(int)) == -1 )
-    TEST( uthread_init( A[4], 3 * sizeof(int)) == -1 )
-    TEST( uthread_init( NULL, 3 * sizeof(int)) == -1 )
+    TEST( uthread_init( A[0], 3 ) == 0 ) 
+    TEST( uthread_init( A[1], 2 ) == 0 )
+    TEST( uthread_init( A[1], -1 ) == -1 )
+    TEST( uthread_init( A[2], 2 ) == -1 )
+    TEST( uthread_init( A[3], 3 ) == -1 )
+    TEST( uthread_init( A[4], 3 ) == -1 )
+    TEST( uthread_init( NULL, 3 ) == -1 )
 
     int B[] = { 1,2};
-    TEST( uthread_init(B, 3* sizeof(int)) == -1 )
+    TEST( uthread_init(B, 3) == -1 )
     return 1;
 }
 
 void f_test_uthread_spawn()
 {
-    printf("f_test_uthread_spawn");
+    for(;;)
+    {
+        printf("f_test_uthread_spawn\n");
+        sleep(SECOND);
+
+    }
 }
 
 int test_uthread_spawn ()
@@ -50,8 +59,8 @@ int test_uthread_spawn ()
     int A[] = { 1, 2, 5 };
     uthread_init(A, 3);
 
-    TEST( uthread_spawn( &f_test_uthread_spawn, 1) == 1 )
-    TEST( uthread_spawn( &f_test_uthread_spawn, 3) == 2 )
+    TEST( uthread_spawn( &f_test_uthread_spawn, 1) != -1 )
+    TEST( uthread_spawn( &f_test_uthread_spawn, 3) == -1 )
     
     for (int i = 0; i < MAX_THREAD_NUM; i++)
     {
@@ -75,7 +84,7 @@ int test_uthread_change_priority()
     TEST( uthread_change_priority(tid, 1) == 0 ) 
     TEST( uthread_change_priority(tid, 2) == 0 ) 
     TEST( uthread_change_priority(tid, 2) == 0 )
-    TEST( uthread_change_priority(tid, 3) == 0 )
+    TEST( uthread_change_priority(tid, 3) == -1 )
     TEST( uthread_change_priority(tid, 4) == -1 )
 
     // passing id of thread which not exist. 
@@ -114,7 +123,6 @@ int test_uthread_terminate()
     TEST( uthread_terminate( tid2 ) == 0 )
     TEST( uthread_terminate( tid3 ) == 0 )
     TEST( uthread_terminate( tid ) == 0 )
-
 
     // todo add test for terminate the main thread.
 
