@@ -10,7 +10,7 @@
 #include "string.h"
 
 
-#define DEBUG
+// #define DEBUG
 
 #ifdef DEBUG
 #include "stdio.h"
@@ -32,6 +32,7 @@ struct {
     int current_priority;
     int runnerid;
 	int runners;
+    int totalprocsses;
     
 } mem_manager;
 
@@ -129,8 +130,8 @@ void mem_manager_main()
 int uthread_init(int *quantum_usecs, int size)
 {
     DEBUG_PRINT("uthread_init::\n")
-
-    if ( size < 0 | quantum_usecs == NULL | (sizeof(int) * size != sizeof(quantum_usecs)) )
+    // (sizeof(int) * size != sizeof(quantum_usecs))
+    if ( size < 0 | quantum_usecs == NULL )
     {
         return CODES.FAILURE;
     }
@@ -148,9 +149,10 @@ int uthread_init(int *quantum_usecs, int size)
         DEBUG_PRINT("malloc::p_quantum_usecs\n")
         return CODES.FAILURE;
     }
-
+    
     mem_manager.size = size;
-	mem_manager.runners = 0;
+	mem_manager.runners = 1;
+    mem_manager.totalprocsses = 1;
     memcpy(mem_manager.p_quantum_usecs, quantum_usecs, size);
     mem_manager.threads = (list ** ) malloc( sizeof( list **) * size );
     mem_manager.current_priority = 0;
@@ -211,19 +213,26 @@ int uthread_spawn(void (*f)(void), int priority)
 {
     if ( priority_validity(priority) == CODES.FAILURE )
     {
+        DEBUG_PRINT("attemption to initalize unrecognaized prtorty type\n")
         return CODES.FAILURE; 
+    }
+
+    if ( mem_manager.runners >= MAX_THREAD_NUM )
+    {
+        DEBUG_PRINT("the number of conccurrent will exceed the limit\n")
+        return CODES.FAILURE;
     }
     
     p_uthreads * warpper = init_p_uthreads(f, priority);    
-    DEBUG_PRINT("p_uthreads initilaized: ")
-
     list * p_node = push(&mem_manager.threads[priority], warpper); 
-    #ifdef DEBUG
-        printf( "%d\n" , nodelist2id(p_node ) );
-    #endif
-    
-    DEBUG_PRINT("p_uthreads pushed into list\n")
-	mem_manager.runners += 1; 
+
+    // DEBUG_PRINT("p_uthreads initilaized: ")
+    // #ifdef DEBUG
+    //     printf( "%d\n" , nodelist2id(p_node ) );
+    // #endif
+    // DEBUG_PRINT("p_uthreads pushed into list\n")
+	mem_manager.totalprocsses += 1;
+    mem_manager.runners += 1; 
     return nodelist2id( p_node );    
 }
 
@@ -238,6 +247,7 @@ int uthread_change_priority(int tid, int priority)
 {
     if ( priority_validity(priority) == CODES.FAILURE )
     {
+        DEBUG_PRINT("attemption to initalize unrecognaized prtorty type\n")
         return CODES.FAILURE; 
     }
     
@@ -245,6 +255,7 @@ int uthread_change_priority(int tid, int priority)
 
     if ( p_list == NULL )
     {
+        DEBUG_PRINT("the head of the process list is empty\n")
         return CODES.FAILURE;
     }
 
@@ -282,13 +293,17 @@ int uthread_terminate(int tid)
     }
 
     list* orignal_node = pop(&p_list);
-
     if ( orignal_node == NULL )
     {
         return CODES.FAILURE;
     }
 
     orignal_node->val->signature[0] = '\0';
+    if (orignal_node->val->blocked == 0)
+    {
+        mem_manager.runners -= 1; 
+    }
+    mem_manager.totalprocsses -= 1;
     free_p_uthreads(orignal_node->val);
     return CODES.SUCCESS;
 }
@@ -318,6 +333,7 @@ int uthread_block(int tid)
     }
 
     p_list->val->blocked = 1;
+    mem_manager.runners -= 1;
     return CODES.SUCCESS;
 }
 
@@ -363,7 +379,7 @@ int uthread_get_tid()
 */
 int uthread_get_total_quantums()
 {
-    return 0;
+    return mem_manager.totalprocsses;
 }
 
 
@@ -379,6 +395,7 @@ int uthread_get_total_quantums()
 */
 int uthread_get_quantums(int tid)
 {
-    return 0;
+    list* p_list = id2nodelist(tid);
+    return p_list->val->times_was_in_running_state;
 }
 

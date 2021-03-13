@@ -16,6 +16,7 @@ struct pointer_uthreads {
     sigjmp_buf env;
     int priority;
     int blocked;
+    int times_was_in_running_state;
 
 };
 
