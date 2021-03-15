@@ -20,6 +20,7 @@
     }
 
 
+
 int test_uthread_init( )
 {
     int A[][3] = {
@@ -42,6 +43,8 @@ int test_uthread_init( )
 
     // int B[] = { 1,2};
     // TEST( uthread_init(B, 3) == -1 ) //pass
+    TEST( uthread_init( A[0], 3 ) == 0 ) 
+
     return 1;
 }
 
@@ -214,17 +217,45 @@ int test_uthread_get_quantums()
     TEST( uthread_get_quantums(tid) == 1 )
 
 }
+
+int test_terminaion_with( )
+{
+    int A[][3] = {
+                    { 1, 2, 5 },
+                    { 1, 8, 0 },
+                    { 1, -8,0 },
+                    { 1, 8, -3},
+                    { 1, -8, 3},
+                    {1 , 2, 0}
+                };
+    TEST( uthread_init( A[0], 3 ) == 0 ) 
+    TEST( uthread_spawn( &f_test_uthread_spawn, 1) != -1 ) 
+    TEST( uthread_spawn( &f_test_uthread_spawn, 1) != -1 ) 
+    printf("%d\n" ,  uthread_spawn( &f_test_uthread_spawn, 1));
+
+    return 1;
+}
+
 int main(void)
 {
-    test_uthread_init();
-    test_uthread_spawn();
-    test_uthread_change_priority();
-    test_uthread_terminate();
-    test_uthread_block();
-    test_uthread_resume();
-    test_uthread_get_tid();
-    test_uthread_get_total_quantums();
-    test_uthread_get_quantums();
+    test_terminaion_with();
 
+
+    // test_uthread_init();
+    // test_uthread_spawn();
+    // test_uthread_change_priority();
+    // test_uthread_terminate();
+    // test_uthread_block();
+    // test_uthread_resume();
+    // test_uthread_get_tid();
+    // test_uthread_get_total_quantums();
+    // test_uthread_get_quantums();
+
+    // uthread_terminate(0);
+
+    for (;;)
+    {
+
+    }
     return 0;
 }

@@ -10,7 +10,7 @@
 #include "string.h"
 
 
-// #define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #include "stdio.h"
@@ -33,12 +33,11 @@ struct {
     int runnerid;
 	int runners;
     int totalprocsses;
+    p_uthreads * main;
     
 } mem_manager;
 
 struct itimerval timer;
-
-struct sigaction sa;
 
 
 struct {
@@ -50,71 +49,116 @@ struct {
 
 int gotit = 0;
 
+void timer_handler(int);
+
+
+struct itimerval timerr;
+void execute(int sig)
+{
+    printf( "execute\n" );
+    p_uthreads * p_obj = mem_manager.current->val;
+    
+    if ( p_obj->blocked == 1)
+        return;
+    
+    p_obj->times_was_in_running_state += 1;
+    siglongjmp(p_obj->env, 0);
+    
+    
+    // // printf("SWITCH: ret_val=%d\n", ret_val); 
+    // if (ret_val == 1) {
+    //     return;
+    // }
+
+    fflush(stdout);
+
+}
+
 
 void update_current_thread( )
 {
-	if ( 	mem_manager.current != NULL &&
-	 		mem_manager.current->next != NULL  )
+	if ( mem_manager.current != NULL
+        && mem_manager.current->next != NULL)
   	{
+        printf("DEBUG: update_current_thread\n");
 		mem_manager.current = mem_manager.current->next;
-	}
+        if ( mem_manager.current != NULL )
+            printf("DEBUG: update_current_thread\n");
+    }
 	else
  	{
+        printf("DEBUG: \n");
 		mem_manager.current_priority = ( mem_manager.current_priority + 1 ) % mem_manager.size; 
-		
-		
-		// int last_priority = mem_manager.current_priority;  
-		// do {
-			
-		// } while( mem_manager.runners > 0 && 
-		// 	( 	mem_manager.threads[mem_manager.current_priority] == NULL ||
-		// 		mem_manager.threads[mem_manager.current_priority]->val == NULL ) );
 	}
 }
 
-
+struct sigaction saa= { &execute };
 void timer_handler(int sig)
 {
+    for (;;)
+    {
+        DEBUG_PRINT("timer_handler\n")
+        printf("i was here\n");
+        update_current_thread();
+        if ( 	mem_manager.threads[mem_manager.current_priority] != NULL &&
+                mem_manager.threads[mem_manager.current_priority]->val != NULL  )
+        {
+            // timer.it_interval.tv_sec = mem_manager.p_quantum_usecs[mem_manager.current_priority];
+            mem_manager.current = mem_manager.threads[mem_manager.current_priority];
+            printf("i was hcurrent_priorityere\n");   
+            p_uthreads * p_obj = mem_manager.current->val;
+            if ( p_obj->blocked == 1 ) 
+            {
+                // execute(2);
+                p_obj->blocked = 0;
+                
+                if ( sigaction(SIGINT, &saa,NULL) < 0) {
+                    printf("sigaction error.");
+                }
 
-	DEBUG_PRINT("timer_handler\n")
-	update_current_thread();
-	if ( 	mem_manager.threads[mem_manager.current_priority] != NULL &&
-	  		mem_manager.threads[mem_manager.current_priority]->val != NULL  )
-	{
-		timer.it_interval.tv_sec = mem_manager.p_quantum_usecs[mem_manager.current_priority];
-		mem_manager.current = mem_manager.threads[mem_manager.current_priority];
-		
-	
-		execute( mem_manager.current->val );
-	}
-
-	// if (setitimer (ITIMER_VIRTUAL, &timer, NULL)) {
-	// 	printf("setitimer error.");
-	// }
+                pause();
+                
+            }
+        }
+        printf("%d\n",mem_manager.current->val->id );
+        sleep(1);            
+    }
+    
 }
 
+struct sigaction sa = { &timer_handler };
 void mem_manager_main() 
 {
 
 	DEBUG_PRINT("mem_manager_main\n")
 
 	// Install timer_handler as the signal handler for SIGVTALRM.
-	sa.sa_handler = &timer_handler;
 
 	if (sigaction(SIGVTALRM, &sa,NULL) < 0) {
 		printf("sigaction error.");
 	}
 
-    timer.it_value.tv_sec =  0;		// first time interval, seconds part
-	timer.it_value.tv_usec = 1;		// first time interval, microseconds part
-	timer.it_interval.tv_sec = 1;	// following time intervals, seconds part
-	timer.it_interval.tv_usec = 0;	// following time intervals, microseconds part
+    timer.it_value.tv_sec =  1;		// first time interval, seconds part
+	timer.it_value.tv_usec = 0;		// first time interval, microseconds part
 
 	// Start a virtual timer. It counts down whenever this process is executing.
 	if (setitimer (ITIMER_VIRTUAL, &timer, NULL)) {
 		printf("setitimer error.");
 	}
 } 
+
+void disable_maintimer()
+{
+    timer.it_value.tv_sec =  0;		// first time interval, seconds part
+	timer.it_value.tv_usec = 0;		// first time interval, microseconds part
+	timer.it_interval.tv_sec = 0;	// following time intervals, seconds part
+	timer.it_interval.tv_usec = 0;	// following time intervals, microseconds part
+
+	// Start a virtual timer. It counts down whenever this process is executing.
+	if (setitimer (ITIMER_VIRTUAL, &timer, NULL)) {
+		printf("setitimer error.");
+	}
+}
 
 
 
@@ -156,6 +200,7 @@ int uthread_init(int *quantum_usecs, int size)
     memcpy(mem_manager.p_quantum_usecs, quantum_usecs, size);
     mem_manager.threads = (list ** ) malloc( sizeof( list **) * size );
     mem_manager.current_priority = 0;
+    // mem_manager.main = init_p_uthreads(mem_manager_main, 1, mem_manager.totalprocsses);
 
     for (int index = 0; index < size; index++ )
     {
@@ -180,7 +225,7 @@ list* id2nodelist(int tid)
 {
     list* p_list = id2adrress(tid);
 
-    if ( p_list == NULL || (is_p_uthreads(p_list->val) != 0) )
+    if ( p_list == NULL ) // is_p_uthreads 
     {
         return NULL;
     }
@@ -197,6 +242,15 @@ int priority_validity(int priority)
     return CODES.SUCCESS;
 }
 
+
+void free_entire_list( list * root)
+{
+    if ( root->next != NULL )
+    {
+        free_entire_list( root->next );
+    }
+    free_p_uthreads( root->val );
+}
 
 /*
  * Description: This function creates a new thread, whose entry point is the
@@ -223,8 +277,9 @@ int uthread_spawn(void (*f)(void), int priority)
         return CODES.FAILURE;
     }
     
-    p_uthreads * warpper = init_p_uthreads(f, priority);    
+    p_uthreads * warpper = init_p_uthreads(f, priority, mem_manager.totalprocsses);
     list * p_node = push(&mem_manager.threads[priority], warpper); 
+
 
     // DEBUG_PRINT("p_uthreads initilaized: ")
     // #ifdef DEBUG
@@ -285,6 +340,22 @@ int uthread_change_priority(int tid, int priority)
 */
 int uthread_terminate(int tid)
 {
+
+
+    if ( tid == 0 )
+    {
+        for (int index = 0; index < mem_manager.size; index++ )
+        {
+            // free_entire_list( mem_manager.threads[index] );
+            // free( mem_manager.threads[index]);
+        }        
+        // free( mem_manager.threads );
+        disable_maintimer();
+        printf("end\n");
+        exit(0);
+    }
+
+
     list* p_list = id2nodelist(tid);
     
     if ( p_list == NULL )
@@ -305,6 +376,8 @@ int uthread_terminate(int tid)
     }
     mem_manager.totalprocsses -= 1;
     free_p_uthreads(orignal_node->val);
+
+   
     return CODES.SUCCESS;
 }
 

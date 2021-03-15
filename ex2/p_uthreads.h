@@ -17,13 +17,12 @@ struct pointer_uthreads {
     int priority;
     int blocked;
     int times_was_in_running_state;
-
+    int id;
 };
 
 typedef struct pointer_uthreads p_uthreads;
 
-p_uthreads * init_p_uthreads( void (*func) (void) ,int);
-void execute(p_uthreads * );
+p_uthreads * init_p_uthreads( void (*func) (void) ,int, int);
 void free_p_uthreads(p_uthreads * );
 int is_p_uthreads(p_uthreads * );
 
