@@ -1,0 +1,11 @@
+
+
+
+davidponar 
+
+(1) first the program ask for an argument, if there isn't one then it's kill it's self.
+(2) then it uses system calls mkdir() tom create a path. 
+(3) inside the directory the program use the opanat() system call to create a file
+(4) then it's uses the fstat() system call to obtain a meta data, from there it's extract the uid or user_name 
+(5) then the program use's that name for output's some string which include's my name
+(6) finaly removes the file, directory and unlinks the memmory via rmdir , unlink systems call      
