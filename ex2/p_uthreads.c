@@ -8,7 +8,6 @@
 #include <wait.h>
 #include "string.h"
 
-#define STACK_SIZE 4096
 
 #ifdef __x86_64__
 /* code for 64 bit Intel arch */
@@ -66,20 +65,20 @@ p_uthreads * init_p_uthreads( void (*func) (void), int priority, int id)
     memcpy(p_obj->signature, POINTER_UTHREADS_SIGNATURE, sizeof(char) * 17);
     
     p_obj->id = id;
-    p_obj->stack = malloc ( STACK_SIZE * sizeof(char));
     p_obj->func = func;
     p_obj->priority = priority; 
     p_obj->blocked = 1;
     p_obj->times_was_in_running_state = 0;
+    // p_obj->env = malloc( sizeof(sigjmp_buf) );
     address_t sp, pc;
 
-    sp = (address_t)p_obj->stack + STACK_SIZE - sizeof(address_t);
+    sp = ((address_t)p_obj->stack) + STACK_SIZE - sizeof(address_t);
     pc = (address_t)p_obj->func;
     
-    sigsetjmp(p_obj->env, id);
+    setjmp(p_obj->env);
     (p_obj->env->__jmpbuf)[JB_SP] = translate_address(sp);
     (p_obj->env->__jmpbuf)[JB_PC] = translate_address(pc);
-    sigemptyset(&(p_obj->env->__saved_mask));     
+    sigemptyset(&p_obj->env->__saved_mask);     
     
     return p_obj;
 }

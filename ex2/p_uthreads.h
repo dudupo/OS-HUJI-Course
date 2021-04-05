@@ -8,16 +8,17 @@
 
 
 extern const char POINTER_UTHREADS_SIGNATURE[17];
+#define STACK_SIZE 4096
 
 struct pointer_uthreads {
     char signature[17];
     void (*func) (void);
-    char * stack; 
-    sigjmp_buf env;
+    char stack[STACK_SIZE]; 
     int priority;
     int blocked;
     int times_was_in_running_state;
     int id;
+    sigjmp_buf env;
 };
 
 typedef struct pointer_uthreads p_uthreads;

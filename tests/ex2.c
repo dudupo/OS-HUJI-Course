@@ -50,10 +50,14 @@ int test_uthread_init( )
 
 void f_test_uthread_spawn()
 {
-    for(;;)
+    // char space[1000]; // Reserve enough space for main to run
+    // space[999] = 1;  
+    printf("f_test_uthread_spawn\n");
+    for(int j =0 ; j < 4; j++)
     {
-        printf("f_test_uthread_spawn\n");
-        sleep(SECOND);
+        printf("f_test_uthread_spawnn\n");
+        
+        // usleep(SECOND);
 
     }
 }
@@ -232,6 +236,9 @@ int test_terminaion_with( )
     TEST( uthread_spawn( &f_test_uthread_spawn, 1) != -1 ) 
     TEST( uthread_spawn( &f_test_uthread_spawn, 1) != -1 ) 
     printf("%d\n" ,  uthread_spawn( &f_test_uthread_spawn, 1));
+    // printf("%d\n" ,  uthread_spawn( &f_test_uthread_spawn, 1));
+    // printf("%d\n" ,  uthread_spawn( &f_test_uthread_spawn, 1));
+    // printf("%d\n" ,  uthread_spawn( &f_test_uthread_spawn, 1));
 
     return 1;
 }

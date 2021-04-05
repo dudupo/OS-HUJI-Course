@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <setjmp.h>
 #include <signal.h>
 #include <unistd.h>
@@ -22,6 +23,8 @@
 #define DEBUG_PRINT(x) ;
 #endif
 
+
+// char mainstack[STACK_SIZE*10];
 
 struct {
 
@@ -55,160 +58,184 @@ void timer_handler(int);
 struct itimerval timerr;
 void execute(int sig)
 {
-    printf( "execute\n" );
-    p_uthreads * p_obj = mem_manager.current->val;
-    
-    if ( p_obj->blocked == 1)
-        return;
-    
-    p_obj->times_was_in_running_state += 1;
-    siglongjmp(p_obj->env, 0);
-    
-    
-    // // printf("SWITCH: ret_val=%d\n", ret_val); 
-    // if (ret_val == 1) {
-    //     return;
-    // }
-
-    fflush(stdout);
-
 }
+void mem_manager_main(int sig);
+int lunch_timer(  void (*_handler) (int), size_t tv_sec, size_t tv_usec );
 
-
-void update_current_thread( )
+sigjmp_buf * get_current_env()
 {
-	if ( mem_manager.current != NULL
-        && mem_manager.current->next != NULL)
-  	{
-        printf("DEBUG: update_current_thread\n");
-		mem_manager.current = mem_manager.current->next;
-        if ( mem_manager.current != NULL )
-            printf("DEBUG: update_current_thread\n");
-    }
-	else
- 	{
-        printf("DEBUG: \n");
-		mem_manager.current_priority = ( mem_manager.current_priority + 1 ) % mem_manager.size; 
-	}
+    return mem_manager.current->val->env;
 }
 
-struct sigaction saa= { &execute };
+int current_is_blocked()
+{
+    return mem_manager.current->val->blocked;
+}
+// struct sigaction saa= { &execsrart_current_taskute };
+
+
+int perform_step( )
+{
+    if ( mem_manager.current != NULL &&
+            mem_manager.current->val != NULL &&
+                mem_manager.current->next != NULL ) 
+    {
+        mem_manager.current =  mem_manager.current->next;        
+    }
+
+    else 
+    {
+        mem_manager.current_priority += 1;
+        mem_manager.current_priority %= mem_manager.size;
+        mem_manager.current = mem_manager.threads[mem_manager.current_priority];
+        // mem_manager.current = mem_manager.threads[0];
+    }
+    return mem_manager.current != NULL && mem_manager.current->val != NULL;
+}
+
 void timer_handler(int sig)
 {
-    for (;;)
-    {
-        DEBUG_PRINT("timer_handler\n")
-        printf("i was here\n");
-        update_current_thread();
-        if ( 	mem_manager.threads[mem_manager.current_priority] != NULL &&
-                mem_manager.threads[mem_manager.current_priority]->val != NULL  )
-        {
-            // timer.it_interval.tv_sec = mem_manager.p_quantum_usecs[mem_manager.current_priority];
-            mem_manager.current = mem_manager.threads[mem_manager.current_priority];
-            printf("i was hcurrent_priorityere\n");   
-            p_uthreads * p_obj = mem_manager.current->val;
-            if ( p_obj->blocked == 1 ) 
-            {
-                // execute(2);
-                p_obj->blocked = 0;
-                
-                if ( sigaction(SIGINT, &saa,NULL) < 0) {
-                    printf("sigaction error.");
-                }
-
-                pause();
-                
-            }
-        }
-        printf("%d\n",mem_manager.current->val->id );
-        sleep(1);            
-    }
     
 }
 
-struct sigaction sa = { &timer_handler };
-void mem_manager_main() 
+void stop_task(int sig)
 {
 
-	DEBUG_PRINT("mem_manager_main\n")
+    printf("stop_task\n");
+    if ( mem_manager.current != NULL &&
+        mem_manager.current->val != NULL ) 
+    {
 
-	// Install timer_handler as the signal handler for SIGVTALRM.
+        int ret_val = sigsetjmp( *get_current_env(), 1);
+        mem_manager.current->val->blocked = 1;
+        printf("SWITCH: ret_val=%d\n", ret_val); 
+        if (ret_val == 1) 
+        {
+            DEBUG_PRINT("switch_current_task, task has been fail\n")    
+        }
 
-	if (sigaction(SIGVTALRM, &sa,NULL) < 0) {
-		printf("sigaction error.");
-	}
+    }
+}
 
-    timer.it_value.tv_sec =  1;		// first time interval, seconds part
-	timer.it_value.tv_usec = 0;		// first time interval, microseconds part
+int uthread_get_tid();
+sigset_t set;
 
-	// Start a virtual timer. It counts down whenever this process is executing.
-	if (setitimer (ITIMER_VIRTUAL, &timer, NULL)) {
-		printf("setitimer error.");
-	}
+void _blockAlarm() {
+    if (sigemptyset(&set) < 0) {
+        // print_error(SYSTEM_ERROR, "sigemptyset error");
+    }
+    if (sigaddset(&set, SIGVTALRM) < 0) {
+        // print_error(SYSTEM_ERROR, "sigaddset error");
+    }
+    if (sigprocmask(SIG_BLOCK, &set, NULL) < 0) {
+        // print_error(SYSTEM_ERROR, "sigprocmask error");
+    }
+}
+
+/**
+ * block SIGVTALRM
+ */
+void _unblockAlarm() {
+    if (sigemptyset(&set) < 0) {
+        // print_error(SYSTEM_ERROR, "sigemptyset error");
+    }
+    if (sigaddset(&set, SIGVTALRM) < 0) {
+        // print_error(SYSTEM_ERROR, "sigaddset error");
+    }
+    if (sigprocmask(SIG_UNBLOCK, &set, NULL) < 0) {
+        // print_error(SYSTEM_ERROR, "sigprocmask error");
+    }
+}
+
+
+void srart_current_task()
+{
+
+    _blockAlarm();
+
+    printf("\nblblblbblb\n");
+    if ( mem_manager.current != NULL &&
+        mem_manager.current->val != NULL ) 
+    {
+        printf("\naaaaaa\n");
+        printf("\n %d \n" ,uthread_get_tid());
+ 
+        // if ( current_is_blocked())
+        // {
+        mem_manager.current->val->blocked = 0;
+        int ret_val = sigsetjmp(*get_current_env(), 1);
+        if (ret_val == 1) {
+            siglongjmp(*get_current_env(),1);
+        }
+        
+        printf("\ncccccc\n");
+
+        // }
+    }
+
+    _unblockAlarm();
+}
+
+void station ( int sig );
+
+#define SYSTEM_ERROR 1
+
+void mem_manager_main_void(void)
+{
+    mem_manager_main(0);
+}
+
+
+static jmp_buf mainbuf;
+void mem_manager_main(int sig) 
+{  
+    _blockAlarm();
+    // int ret_val = sigsetjmp( *get_current_env(), 1);
+    DEBUG_PRINT("mem_manager_main\n")
+    lunch_timer(station, 1, 400);    
+
+    
+    // while ( mem_manager.current != NULL &&
+    //     mem_manager.current->val != NULL )
+    // {
+    //     perform_step();
+    // }
+    
+    if ( mem_manager.current != NULL &&
+        mem_manager.current->val != NULL ) 
+    {   
+        printf("\n %d \n" ,uthread_get_tid());
+        mem_manager.current->val->blocked = 0;
+        // sig_t prev_sigint_handler1 = signal(SIGHUP, catch1);
+        int ret_val = setjmp(mainbuf);
+        if (!ret_val)
+            longjmp(mem_manager.current->val->env, 1);
+
+        // if (ret_val != 1) 
+        // {
+        //     // int flag = perform_step();
+        //     // lunch_timer(station, 1, 400);    
+        //     // if(flag)
+        //     siglongjmp(mem_manager.current->val->env,1);
+        // }
+        // else
+        // {
+        //     DEBUG_PRINT("srart_current_task\n")
+        //     perform_step();
+        //     lunch_timer(station, 1, 400);    
+        // }
+    }
+    else 
+    {
+        perform_step();
+        lunch_timer(station, 1, 400);    
+    }
+    _unblockAlarm();     
 } 
 
 void disable_maintimer()
 {
-    timer.it_value.tv_sec =  0;		// first time interval, seconds part
-	timer.it_value.tv_usec = 0;		// first time interval, microseconds part
-	timer.it_interval.tv_sec = 0;	// following time intervals, seconds part
-	timer.it_interval.tv_usec = 0;	// following time intervals, microseconds part
 
-	// Start a virtual timer. It counts down whenever this process is executing.
-	if (setitimer (ITIMER_VIRTUAL, &timer, NULL)) {
-		printf("setitimer error.");
-	}
-}
-
-
-
-/*
- * Description: This function initializes the thread library.
- * You may assume that this function is called before any other thread library
- * function, and that it is called exactly once. The input to the function is
- * an array of the length of a quantum in micro-seconds for each priority. 
- * It is an error to call this function with an array containing non-positive integer.
- * size - is the size of the array.
- * Return value: On success, return 0. On failure, return -1.
-*/
-int uthread_init(int *quantum_usecs, int size)
-{
-    DEBUG_PRINT("uthread_init::\n")
-    // (sizeof(int) * size != sizeof(quantum_usecs))
-    if ( size < 0 | quantum_usecs == NULL )
-    {
-        return CODES.FAILURE;
-    }
-
-	for ( int index = 0; index < size; index++)
-	{
-		if ( quantum_usecs[index] <= 0 )
-		{
-			return CODES.FAILURE;
-		}
-	}
-    mem_manager.p_quantum_usecs = (int *) malloc( size );
-    if ( mem_manager.p_quantum_usecs == NULL)
-    {
-        DEBUG_PRINT("malloc::p_quantum_usecs\n")
-        return CODES.FAILURE;
-    }
-    
-    mem_manager.size = size;
-	mem_manager.runners = 1;
-    mem_manager.totalprocsses = 1;
-    memcpy(mem_manager.p_quantum_usecs, quantum_usecs, size);
-    mem_manager.threads = (list ** ) malloc( sizeof( list **) * size );
-    mem_manager.current_priority = 0;
-    // mem_manager.main = init_p_uthreads(mem_manager_main, 1, mem_manager.totalprocsses);
-
-    for (int index = 0; index < size; index++ )
-    {
-        mem_manager.threads[index] = ( list * ) malloc( sizeof( list ) );
-    }
-
-	mem_manager_main(); 
-    return CODES.SUCCESS;
 }
 
 int nodelist2id( list* p_node )
@@ -251,6 +278,98 @@ void free_entire_list( list * root)
     }
     free_p_uthreads( root->val );
 }
+
+void station (  int sig )
+{
+    printf("_sigaction\n");
+    lunch_timer(&mem_manager_main, 0, 100);
+}
+
+
+//struct sigaction _sigaction = {0}; // { 1, mem_manager_main };
+//struct itimerval _itimerval;
+// _sigaction.sa_handler = mem_manager_main;
+
+struct sigaction * _sigaction;
+struct itimerval * _itimerval;
+int lunch_timer(  void (*_handler)(int sig), size_t tv_sec, size_t tv_usec ) 
+{
+
+    printf("lunch_timer\n");
+    // free(_sigaction);
+    // free(_itimerval);
+    _sigaction = malloc(sizeof(struct sigaction));  // { 1, mem_manager_main };
+    _itimerval = malloc(sizeof(struct itimerval));
+	_sigaction->sa_handler = _handler;
+    if (sigaction(SIGVTALRM, _sigaction,NULL) < 0)
+    {
+		printf("sigaction error.");
+	}
+	_itimerval->it_value.tv_sec = tv_sec;
+	_itimerval->it_value.tv_usec =  tv_usec;		
+	_itimerval->it_interval.tv_sec = 0;	
+	_itimerval->it_interval.tv_usec = 0;	
+	if (setitimer (ITIMER_VIRTUAL, _itimerval, NULL)) 
+    {
+		printf("setitimer error.");
+	}
+    
+    return 0;
+    
+}
+
+// ------------------------- API  ---------------------------- // 
+
+/*
+ * Description: This function initializes the thread library.
+ * You may assume that this function is called before any other thread library
+ * function, and that it is called exactly once. The input to the function is
+ * an array of the length of a quantum in micro-seconds for each priority. 
+ * It is an error to call this function with an array containing non-positive integer.
+ * size - is the size of the array.
+ * Return value: On success, return 0. On failure, return -1.
+*/
+int uthread_init(int *quantum_usecs, int size)
+{
+    DEBUG_PRINT("uthread_init::\n")
+    // (sizeof(int) * size != sizeof(quantum_usecs))
+    if ( size < 0 | quantum_usecs == NULL )
+    {
+        return CODES.FAILURE;
+    }
+
+	for ( int index = 0; index < size; index++)
+	{
+		if ( quantum_usecs[index] <= 0 )
+		{
+			return CODES.FAILURE;
+		}
+	}
+    mem_manager.p_quantum_usecs = (int *) malloc( size );
+    if ( mem_manager.p_quantum_usecs == NULL)
+    {
+        DEBUG_PRINT("malloc::p_quantum_usecs\n")
+        return CODES.FAILURE;
+    }
+    
+    mem_manager.size = size;
+	mem_manager.runners = 1;
+    mem_manager.totalprocsses = 1;
+    memcpy(mem_manager.p_quantum_usecs, quantum_usecs, size);
+    mem_manager.threads = (list ** ) malloc( sizeof( list **) * size );
+    mem_manager.current_priority = 0;
+
+    for (int index = 0; index < size; index++ )
+    {
+        mem_manager.threads[index] = ( list * ) malloc( sizeof( list ) );
+    }
+
+    mem_manager.main = init_p_uthreads( mem_manager_main_void, 0, 0);
+
+	lunch_timer(&mem_manager_main, 0, 100); 
+    return CODES.SUCCESS;
+}
+
 
 /*
  * Description: This function creates a new thread, whose entry point is the
