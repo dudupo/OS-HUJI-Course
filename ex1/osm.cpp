@@ -12,27 +12,26 @@
 
 
 #define MEASURING( Code )                          \
-    struct timeval t1, t2;                          \                                           
-    double elapsedTime;                             \                                  
-    gettimeofday(&t1, nullptr);                        \                                   
-    for ( int i = 0; i < iterations; i++)  \                                    
+    struct timeval t1, t2;                          \
+    double elapsedTime;                             \
+    gettimeofday(&t1, nullptr);                        \
+    for ( unsigned int i = 0; i < iterations; i++)  \
     {                                               \
         Code                                        \
     }                                               \
-    gettimeofday(&t2, nullptr);                        \                   
-    elapsedTime = (t2.tv_sec - t1.tv_sec) * 1000.0; \                                                
-    return (elapsedTime + (t2.tv_usec - t1.tv_usec)) / iterations;                                     
+    gettimeofday(&t2, nullptr);                        \
+    elapsedTime = (t2.tv_sec - t1.tv_sec) * 1000000; \
+    return (elapsedTime + (t2.tv_usec + 1000000 - t1.tv_usec)) / iterations;                                     
 
 
 
-/* Time measurement function for a simple arithmetic operation.
+/* 
+   Time measurement function for a simple arithmetic operation.
    returns time in nano-seconds upon success,
    and -1 upon failure.
-   */
+*/
 double osm_operation_time(unsigned int iterations)
-{
-    // credit for stackoverflow. 
-    
+{    
     int a = 100;
     int b = 243;
     MEASURING( a + b; )
@@ -44,10 +43,11 @@ void empty_function_call()
 }
 
 
-/* Time measurement function for an empty function call.
+/* 
+   Time measurement function for an empty function call.
    returns time in nano-seconds upon success,
    and -1 upon failure.
-   */
+*/
 double osm_function_time(unsigned int iterations)
 {
     MEASURING(empty_function_call();)    
@@ -59,12 +59,4 @@ double osm_function_time(unsigned int iterations)
 double osm_syscall_time(unsigned int iterations)
 {
     MEASURING(OSM_NULLSYSCALL; )
-}
-
-#include <stdlib.h>
-#include <iostream>
-int main( )
-{
-    std::cout << osm_function_time( 10000000 ) << "\n";
-    return 0;
 }

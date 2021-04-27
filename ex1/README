@@ -1,7 +1,15 @@
-
-
-
 davidponar 
+David Ponarovsky 208504050 
+EX: 1
+
+FILES:
+osm.cpp -- a file with some code
+osm.h -- header file 
+Makefile -- the make file
+ex1.png -- the png file.
+
+ANSWERS:
+Q1:
 
 (1) first the program ask for an argument, if there isn't one then it's kill it's self.
 (2) then it uses system calls mkdir() tom create a path. 

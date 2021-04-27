@@ -19,9 +19,9 @@ void timer_handler(int sig)
 
 
 int main(void) {
-	struct sigaction sa = {0};
 	struct itimerval timer;
 
+	struct sigaction sa = {0};
 	// Install timer_handler as the signal handler for SIGVTALRM.
 	sa.sa_handler = &timer_handler;
 	if (sigaction(SIGVTALRM, &sa,NULL) < 0) {
