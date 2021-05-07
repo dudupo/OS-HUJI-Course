@@ -16,12 +16,11 @@
  * Description: This function initializes the thread library.
  * You may assume that this function is called before any other thread library
  * function, and that it is called exactly once. The input to the function is
- * an array of the length of a quantum in micro-seconds for each priority. 
- * It is an error to call this function with an array containing non-positive integer.
- * size - is the size of the array.
+ * the length of a quantum in micro-seconds. It is an error to call this
+ * function with non-positive quantum_usecs.
  * Return value: On success, return 0. On failure, return -1.
 */
-int uthread_init(int *quantum_usecs, int size);
+int uthread_init(int quantum_usecs);
 
 /*
  * Description: This function creates a new thread, whose entry point is the
@@ -30,20 +29,10 @@ int uthread_init(int *quantum_usecs, int size);
  * would cause the number of concurrent threads to exceed the limit
  * (MAX_THREAD_NUM). Each thread should be allocated with a stack of size
  * STACK_SIZE bytes.
- * priority - The priority of the new thread.
  * Return value: On success, return the ID of the created thread.
  * On failure, return -1.
 */
-int uthread_spawn(void (*f)(void), int priority);
-
-
-/*
- * Description: This function changes the priority of the thread with ID tid.
- * If this is the current running thread, the effect should take place only the
- * next time the thread gets scheduled.
- * Return value: On success, return 0. On failure, return -1.
-*/
-int uthread_change_priority(int tid, int priority);
+int uthread_spawn(void (*f)(void));
 
 
 /*
@@ -74,12 +63,34 @@ int uthread_block(int tid);
 
 /*
  * Description: This function resumes a blocked thread with ID tid and moves
- * it to the READY state. Resuming a thread in a RUNNING or READY state
+ * it to the READY state if it's not synced. Resuming a thread in a RUNNING or READY state
  * has no effect and is not considered as an error. If no thread with
  * ID tid exists it is considered an error.
  * Return value: On success, return 0. On failure, return -1.
 */
 int uthread_resume(int tid);
+
+
+/*
+ * Description: This function tries to acquire a mutex. 
+ * If the mutex is unlocked, it locks it and returns. 
+ * If the mutex is already locked by different thread, the thread moves to BLOCK state. 
+ * In the future when this thread will be back to RUNNING state, 
+ * it will try again to acquire the mutex. 
+ * If the mutex is already locked by this thread, it is considered an error. 
+ * Return value: On success, return 0. On failure, return -1.
+*/
+int uthread_mutex_lock();
+
+
+/*
+ * Description: This function releases a mutex. 
+ * If there are blocked threads waiting for this mutex, 
+ * one of them (no matter which one) moves to READY state.
+ * If the mutex is already unlocked, it is considered an error. 
+ * Return value: On success, return 0. On failure, return -1.
+*/
+int uthread_mutex_unlock();
 
 
 /*
@@ -111,7 +122,6 @@ int uthread_get_total_quantums();
  * 			     On failure, return -1.
 */
 int uthread_get_quantums(int tid);
-
 
 #endif
 

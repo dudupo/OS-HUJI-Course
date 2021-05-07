@@ -27,6 +27,7 @@ int main(void) {
 	if (sigaction(SIGVTALRM, &sa,NULL) < 0) {
 		printf("sigaction error.");
 	}
+	
 
 	// Configure the timer to expire after 1 sec... */
 	timer.it_value.tv_sec = 1;		// first time interval, seconds part

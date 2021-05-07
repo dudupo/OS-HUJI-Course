@@ -5,11 +5,7 @@
 #include <vector>
 
 
-#include <stdio.h>
-#include <setjmp.h>
-#include <signal.h>
-#include <unistd.h>
-#include <sys/time.h>
+
 
 #define SECOND 1000000
 #define STACK_SIZE 4096
@@ -59,24 +55,96 @@ address_t translate_address(address_t addr)
 
 #endif
 
-
-
-int Scheduler::uthread_init(int *quantum_usecs, int size)
+Thread::Thread ( void(*f)(void), int tid ) : state(READY), f(f), tid(tid)
 {
-    if ( size <= 0 )
-        return -1;
+    address_t sp, pc;
+    sp = (address_t)this->stack + STACK_SIZE - sizeof(address_t);
+    pc = (address_t)f;
+    
+    sigsetjmp(this->env[0], 1);
+    (this->env[0]->__jmpbuf)[JB_SP] = translate_address(sp);
+    (this->env[0]->__jmpbuf)[JB_PC] = translate_address(pc);
+    sigemptyset(&this->env[0]->__saved_mask);
+         
+}
 
-    this->quantum_usecs =\
-     new std::vector<int>(quantum_usecs, quantum_usecs+ size*sizeof(int)); 
+void Thread::run() 
+{   
+
+    // int ret = sigsetjmp(this->env[0], 1);
+    // if ( ret = 0 )
+    // {}
+    
+    // siglongjmp( this->env[0], 1);
+    
+    
+    // this->f();
+}
+
+int Scheduler::uthread_init(int quantum_usecs) 
+{
+
+    // handle errors.
+    if ( quantum_usecs <= 0 )
+    {
+        return -1;
+    }
+    this->quantum_usecs = quantum_usecs;
     return 0;
 }
 
-int Scheduler::uthread_spawn(void (*f)(void), int priority)
+int Scheduler::uthread_spawn(void (*f)(void))
 {
-    std::pair<Thread *, int> pair ( new Thread(f) , priority);
-    this->radyQueue.push_back(pair);
-    return 1;  
+
+    // update the number of initialztions. 
+    this->thread_counter++;  
+
+    int tid = 1;    
+    for (; tid <  MAX_THREAD_NUM && \
+     this->contain( tid ) ; tid++ ) {  }
+
+    // handle error
+    if ( tid == MAX_THREAD_NUM )
+    {
+        return -1;
+    }
+    this->radyQueue.push_back(new Thread(f, tid));
+    this->thread_table.insert({  tid, this->radyQueue.back() });
+    return tid;  
 }
+
+
+#define CHECK_EXISTENCE\
+    if (!this->contain(tid))\
+    {\
+        return -1;\
+    }
+
+
+int Scheduler::uthread_terminate( int tid)
+{
+    // handle error
+    CHECK_EXISTENCE
+    return 1;
+}
+int Scheduler::uthread_block(int tid)
+{
+    // handle error
+    CHECK_EXISTENCE
+
+    this->thread_table[ tid ]->state = Thread::BLOCKED; 
+    return 1;
+
+}
+int Scheduler::uthread_resume(int tid)
+{
+    // handle error
+    CHECK_EXISTENCE
+
+    this->thread_table[ tid ]->state = Thread::READY;
+    return 1;
+}
+
 
 static jmp_buf buf;
 volatile sig_atomic_t mux = false;
@@ -115,48 +183,163 @@ void mainCaller(int sig)
 {
 
 
+    if (sig != -1)
+    {
+        int ret = sigsetjmp( Scheduler::getInstance().vpointer()->env[0], 1);
+        if (ret != 0)
+        {
+            return;
+        }
+    }
+    // else{
 
-    mux = true;
     sigset_t y  =  { SIGVTALRM, SIGINT };
     sigset_t omask;
     sigprocmask( SIG_UNBLOCK,  &y, &omask);    
     reset_itimer(); 
     siglongjmp(buf, 1);
-}
-void Scheduler::main()
-{
+    // }
     
+    // std::cout << "thread " << ret << std::endl;
+    // if ( ret == 1)
+    // {
+    //     return;
+    // }
+    // else{
+        
+    // }
+}
+
+
+
+
+void Scheduler::main()
+{   
+    // Setting up jumping location.
     if (!sigsetjmp(buf, 1))
     {
-        mainCaller(0);
+        this->pointer = this->radyQueue.begin();
+        mainCaller(-1);
     }
     else 
     {
-        auto job = this->radyQueue.back();
-        this->radyQueue.pop_back(); 
-        this->radyQueue.insert( this->radyQueue.begin(), job );
-        vt_alarm( this->quantum_usecs->at(job.second) );
-        job.first->run();   
+
+        // Change the status of the last Thread from RUNNING to READY 
+        if ( this->vpointer()->state == Thread::RUNNING )
+        {
+            this->vpointer()->state
+             = Thread::READY;
+        }
+
+        ++(*this);
+
+        // Advances the queue. 
+        for (; \
+         this->vpointer()->state != Thread::READY; \
+          ++(*this) ) { }
+        
+        // Executing the function. 
+        this->vpointer()->state = Thread::RUNNING;
+
+        vt_alarm(this->quantum_usecs );
+        
+        this->total_quantums += 1;
+        this->vpointer()->total_quantums += 1;
+        siglongjmp(this->vpointer()->env[0],1);
     }
     raise(SIGINT);
 }
 
+int Scheduler::uthread_mutex_lock()
+{   
+    int tid = this->uthread_get_tid();
+    
+    /*
+        "resignal" the timer.-
+         -to proxy which end the mission.  
+    */
+
+
+    if ( this->mutex == tid || this->mutex == -1 )
+    {
+        this->mutex = 1;
+    }
+    else 
+    {
+
+    }
+
+    /*
+        "resignal" the timer again.
+    */
+
+    return 1;
+}
+int Scheduler::uthread_mutex_unlock()
+{
+    int tid = this->uthread_get_tid();
+    if ( this->mutex == tid || this->mutex == -1 )
+    {
+        this->mutex = -1;
+    }
+    return 1;
+}
+int Scheduler::uthread_get_tid()
+{
+    return Scheduler::getInstance().vpointer()->tid;
+}
+
+int Scheduler::uthread_get_total_quantums()
+{
+    return this->total_quantums;
+}
+
+int Scheduler::uthread_get_quantums(int tid)
+{   
+    CHECK_EXISTENCE
+    return this->thread_table[tid]->total_quantums;
+}
+
+
 void test()
 {
     std::cout << "hi" << std::endl;
+    for(;;)
+    {
+    
+    }
 }
 void test1()
 {
-    std::cout << "hi2" << std::endl;
+    int j =0;
+    for ( ;; )
+    {
+    // struct timespec ts = {0 ,100};
+    // nanosleep(&ts, NULL);    // usleep(100);
+    int i = 0;
+    for (; i< 100000000; i++)
+    {
+        
+    }
+    j += i;
+    // sleep(1);
+    std::cout << "hi2 " << j << std::endl;
+    }
 }
 void test2()
 {
     struct itimerval old, newitimer;
     getitimer( ITIMER_REAL, &old );
-    std::cout << "hi3 " << old.it_value.tv_sec <<  std::endl;
+    int j = 0;
     for ( ;; )
     {
-
+        // struct timespec ts = {1 ,100};
+        // nanosleep(&ts, NULL);    // usleep(100);
+        for (int i = 0; i< 100000000; i++)
+        {   
+            j = i;
+        }
+        std::cout << "hi3 " << j <<  std::endl;
     } 
 }
 
@@ -168,17 +351,9 @@ void test4(int sig)
 int main(int argc, char const *argv[])
 {
     
-
-	// struct itimerval timer;
-
-	// Install timer_handler as the signal handler for SIGVTALRM.
 	sa.sa_handler = &mainCaller;
     sa.sa_flags = 0;
     saINT.sa_handler = &mainCaller;
-    // sa.sa_flags = SA_ONSTACK | SA_NOCLDWAIT;
-	// if (sigaction(SIGVTALRM, &sa,NULL) < 0) {
-	// 	printf("sigaction error.");
-	// }
 
     if (sigaction(SIGINT, &saINT,NULL) < 0) {
 		printf("sigaction error.");
@@ -186,38 +361,10 @@ int main(int argc, char const *argv[])
 
     signal(SIGVTALRM, &mainCaller);
 
-    int quantum_usecs[3] = {1 ,1 ,3};
-    Scheduler::getInstance().uthread_init( quantum_usecs, 3 );
-    Scheduler::getInstance().uthread_spawn(  &test, 0 );
-    Scheduler::getInstance().uthread_spawn(  &test1, 1 );
-    Scheduler::getInstance().uthread_spawn(  &test2, 2 );
-    
-
-    // if (!setjmp(buf))
-    // {
-    //     mainCaller(0);
-    // }
-    // else 
-    // {
-    
-    // }
-
+    Scheduler::getInstance().uthread_init( 2);
+    Scheduler::getInstance().uthread_spawn(  &test);
+    Scheduler::getInstance().uthread_spawn(  &test1 );
+    Scheduler::getInstance().uthread_spawn(  &test2 );
     Scheduler::getInstance().main();
-    // for (;;){
-    // }
-    // // mainCaller(0);
-    // sa.sa_handler = &test4; 
-    
-    // if (sigaction(SIGVTALRM, &sa,NULL) < 0)
-    // { 
-	// 	printf("sigaction error.");
-	// }
-
-    // std::cout << "hiddd" << std::endl;
-    // vt_alarm(1);
-	// raise(SIGVTALRM);
-
-    // raise(SIGINT);
-    // raise(SIGINT);
     return 0;
 }
