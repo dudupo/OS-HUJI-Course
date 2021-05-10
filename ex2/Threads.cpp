@@ -182,7 +182,6 @@ void reset_itimer()
 void mainCaller(int sig)
 {
 
-
     if (sig != -1)
     {
         int ret = sigsetjmp( Scheduler::getInstance().vpointer()->env[0], 1);
@@ -191,27 +190,13 @@ void mainCaller(int sig)
             return;
         }
     }
-    // else{
 
     sigset_t y  =  { SIGVTALRM, SIGINT };
     sigset_t omask;
     sigprocmask( SIG_UNBLOCK,  &y, &omask);    
     reset_itimer(); 
     siglongjmp(buf, 1);
-    // }
-    
-    // std::cout << "thread " << ret << std::endl;
-    // if ( ret == 1)
-    // {
-    //     return;
-    // }
-    // else{
-        
-    // }
 }
-
-
-
 
 void Scheduler::main()
 {   
@@ -252,23 +237,36 @@ void Scheduler::main()
 
 int Scheduler::uthread_mutex_lock()
 {   
+
+
     int tid = this->uthread_get_tid();
     
+
+    // handle the case where the thread is 
+    // alrady locked by this thred. 
+    if ( this->mutex == tid )
+    {
+        return -1;
+    }
+
+
     /*
         "resignal" the timer.-
          -to proxy which end the mission.  
     */
-
-
-    if ( this->mutex == tid || this->mutex == -1 )
+   
+    if ( this->mutex != -1 )
     {
-        this->mutex = 1;
+        this->blockedMutexQueue.push_back(this->thread_table[tid]);
+        this->thread_table[tid]->state = Thread::BLOCKED;
+        raise( SIGINT );
+        // while( this->mutex != -1 )
+        // {
+        // }
     }
-    else 
-    {
+    this->mutex = tid;
 
-    }
-
+    
     /*
         "resignal" the timer again.
     */
@@ -277,11 +275,22 @@ int Scheduler::uthread_mutex_lock()
 }
 int Scheduler::uthread_mutex_unlock()
 {
-    int tid = this->uthread_get_tid();
-    if ( this->mutex == tid || this->mutex == -1 )
+    // handle an error.
+    if ( this->mutex == -1 )
     {
-        this->mutex = -1;
+        return -1;
     }
+
+    int tid = this->uthread_get_tid();
+    this->mutex = -1;
+
+    // relase a witing thread. 
+    if ( this->blockedMutexQueue.size() > 0 )
+    {
+        this->blockedMutexQueue.back()->state = Thread::READY;
+        this->blockedMutexQueue.pop_back();
+    }
+    
     return 1;
 }
 int Scheduler::uthread_get_tid()
@@ -314,16 +323,13 @@ void test1()
     int j =0;
     for ( ;; )
     {
-    // struct timespec ts = {0 ,100};
-    // nanosleep(&ts, NULL);    // usleep(100);
-    int i = 0;
-    for (; i< 100000000; i++)
-    {
-        
-    }
-    j += i;
-    // sleep(1);
-    std::cout << "hi2 " << j << std::endl;
+        int i = 0;
+        for (; i< 100000000; i++)
+        {
+            
+        }
+        j += i;
+        std::cout << "hi2 " << j << std::endl;
     }
 }
 void test2()
@@ -333,8 +339,6 @@ void test2()
     int j = 0;
     for ( ;; )
     {
-        // struct timespec ts = {1 ,100};
-        // nanosleep(&ts, NULL);    // usleep(100);
         for (int i = 0; i< 100000000; i++)
         {   
             j = i;

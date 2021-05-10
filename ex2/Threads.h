@@ -68,6 +68,7 @@ class Scheduler {
         std::map<int, Thread *> thread_table; 
         int thread_counter = 0;
         std::vector<Thread *>::iterator pointer = radyQueue.begin();
+        std::vector<Thread *> blockedMutexQueue;
         
         Scheduler() : total_quantums(1) {}
         int contextSwitch( Thread enteringThread, Thread oldTread);
