@@ -3,6 +3,7 @@
 
 #define THREAD
 
+#include <list>
 #include <vector>
 #include <map>
 #include <list>
@@ -21,17 +22,18 @@ class Thread {
         static int const READY = 1;
         static int const RUNNING = 2;
         static int const BLOCKED = 3;
-        Thread ( void(*f)(void), int tid ); 
 
-        void run(); 
+        Thread( );
+
+        Thread ( void(*f)(void), int tid ); 
         int getid () { return tid; }
 
         friend class Scheduler;
         friend void mainCaller( int tid);
 
+        int state;
     private:
         int tid;
-        int state;
         int total_quantums;
         sigjmp_buf env[1];
         void (*f) (void);
@@ -57,38 +59,27 @@ class Scheduler {
         int uthread_get_total_quantums();
         int uthread_get_quantums(int tid);
         friend void mainCaller( int tid);
-        inline int contain( int tid ) {  return this->thread_table.find(tid) != this->thread_table.end(); }
+        int contain( int tid ) ; 
         void main();
     private:
+        static Thread * queue[MAX_THREAD_NUM];
+
+        static int g_quantum_usecs;
+        static int g_currenttid;
+        static int g_mutex;
+        static std::list< Thread* > g_blockedMutexQueue;
+
         int quantum_usecs;
         int total_quantums;
-        int mutex = -1;
-        
-        std::vector<Thread *> radyQueue ; 
-        std::map<int, Thread *> thread_table; 
-        int thread_counter = 0;
-        std::vector<Thread *>::iterator pointer = radyQueue.begin();
-        std::vector<Thread *> blockedMutexQueue;
-        
+        int mutex = -1;        
+        int thread_counter = 0;        
+        int currenttid = 0;
+
         Scheduler() : total_quantums(1) {}
         int contextSwitch( Thread enteringThread, Thread oldTread);
+        int findreadyJob( int hist );
         
-        Thread * vpointer() { return (*this->pointer);}
-        void operator++( )
-        {
-            if ( this->pointer == this->radyQueue.end()-1 )
-            {
-                this->pointer = this->radyQueue.begin();
-            }
-            else 
-            {
-                this->pointer++;
-            }
-        }
-
 };
-
-
 
 void mainScheduler( int sig );
 

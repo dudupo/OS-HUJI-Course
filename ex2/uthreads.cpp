@@ -157,7 +157,7 @@ int uthread_get_quantums(int tid)
 {
     return Scheduler::getInstance().uthread_get_quantums(tid);
 }
-#endif
+
 
 
 

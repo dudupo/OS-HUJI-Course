@@ -5,15 +5,14 @@
 #include <vector>
 
 
-
-
-#define SECOND 1000000
-#define STACK_SIZE 4096
-
-char stack1[STACK_SIZE];
-char stack2[STACK_SIZE];
-
-sigjmp_buf env[2];
+/*
+    Static Private Segement. (Scheduler) 
+*/
+Thread * Scheduler::queue[MAX_THREAD_NUM];
+int Scheduler::g_quantum_usecs;
+int Scheduler::g_currenttid;
+int Scheduler::g_mutex = -1;
+std::list< Thread* > Scheduler::g_blockedMutexQueue;
 
 #ifdef __x86_64__
 /* code for 64 bit Intel arch */
@@ -55,6 +54,16 @@ address_t translate_address(address_t addr)
 
 #endif
 
+void emptyf()
+{
+
+}
+
+Thread::Thread( ) : state(READY), tid(0)
+{
+    sigemptyset(&this->env[0]->__saved_mask);
+}
+
 Thread::Thread ( void(*f)(void), int tid ) : state(READY), f(f), tid(tid)
 {
     address_t sp, pc;
@@ -65,20 +74,6 @@ Thread::Thread ( void(*f)(void), int tid ) : state(READY), f(f), tid(tid)
     (this->env[0]->__jmpbuf)[JB_SP] = translate_address(sp);
     (this->env[0]->__jmpbuf)[JB_PC] = translate_address(pc);
     sigemptyset(&this->env[0]->__saved_mask);
-         
-}
-
-void Thread::run() 
-{   
-
-    // int ret = sigsetjmp(this->env[0], 1);
-    // if ( ret = 0 )
-    // {}
-    
-    // siglongjmp( this->env[0], 1);
-    
-    
-    // this->f();
 }
 
 int Scheduler::uthread_init(int quantum_usecs) 
@@ -90,6 +85,24 @@ int Scheduler::uthread_init(int quantum_usecs)
         return -1;
     }
     this->quantum_usecs = quantum_usecs;
+    g_quantum_usecs = quantum_usecs;
+    g_mutex = -1;
+    for (int i = 0; i < MAX_THREAD_NUM; i++ )
+    {
+        queue[i] = nullptr;
+    }
+
+    queue[0] = new Thread( &emptyf, 0);
+    g_currenttid = 0;
+    if ( sigsetjmp(queue[0]->env[0], 1) != 0)
+    {
+        std::cout << "[0] __ init __" << std::endl;
+        return 0;
+    }
+    else 
+    {
+        Scheduler::getInstance().main();
+    }
     return 0;
 }
 
@@ -101,18 +114,21 @@ int Scheduler::uthread_spawn(void (*f)(void))
 
     int tid = 1;    
     for (; tid <  MAX_THREAD_NUM && \
-     this->contain( tid ) ; tid++ ) {  }
+     queue[tid] != nullptr ; tid++ ) {  }
 
     // handle error
     if ( tid == MAX_THREAD_NUM )
     {
         return -1;
     }
-    this->radyQueue.push_back(new Thread(f, tid));
-    this->thread_table.insert({  tid, this->radyQueue.back() });
+    queue[tid] = new Thread(f, tid);
     return tid;  
 }
 
+int Scheduler::contain( int tid )
+{
+    return tid < MAX_THREAD_NUM && queue[tid] != nullptr; 
+} 
 
 #define CHECK_EXISTENCE\
     if (!this->contain(tid))\
@@ -120,8 +136,7 @@ int Scheduler::uthread_spawn(void (*f)(void))
         return -1;\
     }
 
-
-int Scheduler::uthread_terminate( int tid)
+int Scheduler::uthread_terminate(int tid)
 {
     // handle error
     CHECK_EXISTENCE
@@ -132,7 +147,7 @@ int Scheduler::uthread_block(int tid)
     // handle error
     CHECK_EXISTENCE
 
-    this->thread_table[ tid ]->state = Thread::BLOCKED; 
+    queue[tid]->state = Thread::BLOCKED; 
     return 1;
 
 }
@@ -140,11 +155,9 @@ int Scheduler::uthread_resume(int tid)
 {
     // handle error
     CHECK_EXISTENCE
-
-    this->thread_table[ tid ]->state = Thread::READY;
+    queue[tid]->state = Thread::READY;
     return 1;
 }
-
 
 static jmp_buf buf;
 volatile sig_atomic_t mux = false;
@@ -179,23 +192,46 @@ void reset_itimer()
     }
 }
 
+
+#define MACRO_BLOCK_SIG( sigsetin, sigsetout )\
+    sigset_t sigsetin  =  { SIGVTALRM, SIGINT };\
+    sigset_t sigsetout;\
+    sigprocmask( SIG_BLOCK,  &sigsetin, &sigsetout);  
+
+#define MACRO_UNBLOCK_SIG( sigsetin, sigsetout )\
+    sigprocmask( SIG_UNBLOCK,  &sigsetin, &sigsetout);  
+
+
 void mainCaller(int sig)
 {
-
+    MACRO_BLOCK_SIG(sigsetin, sigsetout)
     if (sig != -1)
     {
-        int ret = sigsetjmp( Scheduler::getInstance().vpointer()->env[0], 1);
+
+        std::cout << "mainCaller(int sig) " <<  Scheduler::getInstance().g_currenttid << std::endl;
+
+        int ret = sigsetjmp(\
+         Scheduler::getInstance().queue[\
+          Scheduler::getInstance().g_currenttid ]->env[0], 1);
         if (ret != 0)
         {
             return;
         }
     }
+    MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
 
-    sigset_t y  =  { SIGVTALRM, SIGINT };
-    sigset_t omask;
-    sigprocmask( SIG_UNBLOCK,  &y, &omask);    
     reset_itimer(); 
     siglongjmp(buf, 1);
+}
+
+int Scheduler::findreadyJob( int hist )
+{
+    std::cout << hist << std::endl;
+    int i = hist; 
+    for (; (queue[i] == nullptr) || (
+        queue[i]->state != Thread::READY );
+            i = (i+1)% MAX_THREAD_NUM ) { }            
+    return i;
 }
 
 void Scheduler::main()
@@ -203,34 +239,25 @@ void Scheduler::main()
     // Setting up jumping location.
     if (!sigsetjmp(buf, 1))
     {
-        this->pointer = this->radyQueue.begin();
         mainCaller(-1);
     }
     else 
     {
-
-        // Change the status of the last Thread from RUNNING to READY 
-        if ( this->vpointer()->state == Thread::RUNNING )
+        if ( queue[g_currenttid]->state == Thread::RUNNING )
         {
-            this->vpointer()->state
-             = Thread::READY;
+            queue[g_currenttid]->state = Thread::READY;
         }
-
-        ++(*this);
+        g_currenttid += 1;
+        
+        std::cout << "void Scheduler::main() " << g_currenttid << "\n";
 
         // Advances the queue. 
-        for (; \
-         this->vpointer()->state != Thread::READY; \
-          ++(*this) ) { }
-        
         // Executing the function. 
-        this->vpointer()->state = Thread::RUNNING;
-
-        vt_alarm(this->quantum_usecs );
-        
-        this->total_quantums += 1;
-        this->vpointer()->total_quantums += 1;
-        siglongjmp(this->vpointer()->env[0],1);
+        g_currenttid = findreadyJob( g_currenttid );
+        queue[g_currenttid]->state  = Thread::RUNNING;
+        queue[g_currenttid]->total_quantums += 1;
+        vt_alarm(g_quantum_usecs);
+        siglongjmp(queue[g_currenttid]->env[0],1);
     }
     raise(SIGINT);
 }
@@ -238,78 +265,69 @@ void Scheduler::main()
 int Scheduler::uthread_mutex_lock()
 {   
 
-
+    // block the signals 
+    MACRO_BLOCK_SIG(sigsetin, sigsetout)
     int tid = this->uthread_get_tid();
-    
-
     // handle the case where the thread is 
-    // alrady locked by this thred. 
-    if ( this->mutex == tid )
+    // alrady locked by this thread. 
+    if ( g_mutex == tid )
     {
+        MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
         return -1;
     }
-
-
-    /*
-        "resignal" the timer.-
-         -to proxy which end the mission.  
-    */
    
-    if ( this->mutex != -1 )
+    if ( g_mutex != -1 )
     {
-        this->blockedMutexQueue.push_back(this->thread_table[tid]);
-        this->thread_table[tid]->state = Thread::BLOCKED;
+        g_blockedMutexQueue.push_back(queue[tid]);
+        queue[tid]->state = Thread::BLOCKED;
+        MACRO_UNBLOCK_SIG(sigsetin, sigsetout)        
         raise( SIGINT );
-        // while( this->mutex != -1 )
-        // {
-        // }
     }
-    this->mutex = tid;
-
-    
-    /*
-        "resignal" the timer again.
-    */
-
+    else 
+    {
+        g_mutex = tid;
+        MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
+    }
     return 1;
 }
 int Scheduler::uthread_mutex_unlock()
 {
+
+    MACRO_BLOCK_SIG(sigsetin, sigsetout)
     // handle an error.
-    if ( this->mutex == -1 )
+    if ( g_mutex == -1 )
     {
+        MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
         return -1;
     }
 
     int tid = this->uthread_get_tid();
-    this->mutex = -1;
-
+    g_mutex = -1;
     // relase a witing thread. 
-    if ( this->blockedMutexQueue.size() > 0 )
+    if ( g_blockedMutexQueue.size() > 0 )
     {
-        this->blockedMutexQueue.back()->state = Thread::READY;
-        this->blockedMutexQueue.pop_back();
+        g_blockedMutexQueue.back()->state = Thread::READY;
+        g_blockedMutexQueue.pop_back();
     }
-    
+    MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
     return 1;
 }
+
 int Scheduler::uthread_get_tid()
 {
-    return Scheduler::getInstance().vpointer()->tid;
+    return g_currenttid;
 }
 
 int Scheduler::uthread_get_total_quantums()
 {
-    return this->total_quantums;
+    return queue[currenttid]->total_quantums;
 }
 
 int Scheduler::uthread_get_quantums(int tid)
 {   
     CHECK_EXISTENCE
-    return this->thread_table[tid]->total_quantums;
+    return queue[tid]->total_quantums;
 }
-
-
 void test()
 {
     std::cout << "hi" << std::endl;
@@ -324,10 +342,11 @@ void test1()
     for ( ;; )
     {
         int i = 0;
-        for (; i< 100000000; i++)
+        for (; i< 30000000; i++)
         {
             
         }
+        Scheduler::getInstance().uthread_mutex_lock();
         j += i;
         std::cout << "hi2 " << j << std::endl;
     }
@@ -343,8 +362,11 @@ void test2()
         {   
             j = i;
         }
+        Scheduler::getInstance().uthread_mutex_lock();
         std::cout << "hi3 " << j <<  std::endl;
     } 
+
+    Scheduler::getInstance().uthread_mutex_unlock();
 }
 
 void test4(int sig)
@@ -365,10 +387,24 @@ int main(int argc, char const *argv[])
 
     signal(SIGVTALRM, &mainCaller);
 
-    Scheduler::getInstance().uthread_init( 2);
-    Scheduler::getInstance().uthread_spawn(  &test);
+    Scheduler::getInstance().uthread_init(1);
+    // Scheduler::getInstance().uthread_spawn(  &test);
     Scheduler::getInstance().uthread_spawn(  &test1 );
     Scheduler::getInstance().uthread_spawn(  &test2 );
-    Scheduler::getInstance().main();
+    // Scheduler::getInstance().main();
+
+    // test1();
+    int j =0 ;
+    for (;;)
+    {
+         int i = 0;
+        for (; i< 100000000; i++)
+        {
+            
+        }
+        j += i;
+        std::cout << "hi5 " << j << std::endl;
+    }
+    // raise(SIGINT);
     return 0;
 }
