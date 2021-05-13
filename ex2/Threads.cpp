@@ -12,6 +12,7 @@ Thread * Scheduler::queue[MAX_THREAD_NUM];
 int Scheduler::g_quantum_usecs;
 int Scheduler::g_currenttid;
 int Scheduler::g_mutex = -1;
+int Scheduler::g_total_quantums = 0;
 std::list< Thread* > Scheduler::g_blockedMutexQueue;
 
 #ifdef __x86_64__
@@ -59,6 +60,12 @@ void emptyf()
 
 }
 
+void handleError( )
+{
+    std::cerr << "thread library error: " << " ERROR " << std::endl;
+}
+
+
 Thread::Thread( ) : state(READY), tid(0)
 {
     sigemptyset(&this->env[0]->__saved_mask);
@@ -75,23 +82,25 @@ Thread::Thread ( void(*f)(void), int tid ) : state(READY), f(f), tid(tid)
     (this->env[0]->__jmpbuf)[JB_PC] = translate_address(pc);
     sigemptyset(&this->env[0]->__saved_mask);
 }
-
+void setSIGINT();
 int Scheduler::uthread_init(int quantum_usecs) 
 {
 
     // handle errors.
     if ( quantum_usecs <= 0 )
     {
+        handleError();
         return -1;
     }
     this->quantum_usecs = quantum_usecs;
+    g_total_quantums = 0;
     g_quantum_usecs = quantum_usecs;
     g_mutex = -1;
     for (int i = 0; i < MAX_THREAD_NUM; i++ )
     {
         queue[i] = nullptr;
     }
-
+    setSIGINT();
     queue[0] = new Thread( &emptyf, 0);
     g_currenttid = 0;
     if ( sigsetjmp(queue[0]->env[0], 1) != 0)
@@ -119,6 +128,7 @@ int Scheduler::uthread_spawn(void (*f)(void))
     // handle error
     if ( tid == MAX_THREAD_NUM )
     {
+        handleError();
         return -1;
     }
     queue[tid] = new Thread(f, tid);
@@ -132,20 +142,46 @@ int Scheduler::contain( int tid )
 
 #define CHECK_EXISTENCE\
     if (!this->contain(tid))\
-    {\
+    {                  \
+        handleError();\
         return -1;\
     }
 
+
+
+void exitfunc()
+{
+    exit(0);
+}
 int Scheduler::uthread_terminate(int tid)
 {
     // handle error
     CHECK_EXISTENCE
-    return 1;
+
+    std::cout << tid << std::endl;
+
+    if ( tid == 0 )
+    {
+        queue[0] = new Thread(&exitfunc, 0);
+        exit(0);
+    }
+    else
+    {
+        queue[tid] = nullptr;
+    }
+
+    return 0;
 }
 int Scheduler::uthread_block(int tid)
 {
     // handle error
     CHECK_EXISTENCE
+
+    if ( tid == 0)
+    {
+        handleError();
+        return  -1;
+    }
 
     queue[tid]->state = Thread::BLOCKED; 
     return 1;
@@ -166,14 +202,14 @@ static struct sigaction sa = {0};
 static struct sigaction saINT = {0};
 void mainCaller(int sig);
 
-unsigned int vt_alarm (int seconds)
+unsigned int vt_alarm (int miliseconds)
 {
     signal(SIGVTALRM, &mainCaller);
 
     newitimer.it_interval.tv_usec = 0;
     newitimer.it_interval.tv_sec = 0;
-    newitimer.it_value.tv_usec = 0;
-    newitimer.it_value.tv_sec = seconds;
+    newitimer.it_value.tv_usec = miliseconds;
+    newitimer.it_value.tv_sec = 0;
   
     if (setitimer (ITIMER_VIRTUAL, &newitimer, &old) == -1)
     {
@@ -210,6 +246,7 @@ void mainCaller(int sig)
 
         std::cout << "mainCaller(int sig) " <<  Scheduler::getInstance().g_currenttid << std::endl;
 
+        MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
         int ret = sigsetjmp(\
          Scheduler::getInstance().queue[\
           Scheduler::getInstance().g_currenttid ]->env[0], 1);
@@ -218,9 +255,8 @@ void mainCaller(int sig)
             return;
         }
     }
+    reset_itimer();
     MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
-
-    reset_itimer(); 
     siglongjmp(buf, 1);
 }
 
@@ -243,19 +279,22 @@ void Scheduler::main()
     }
     else 
     {
+        MACRO_BLOCK_SIG(sigsetin, sigsetout)
         if ( queue[g_currenttid]->state == Thread::RUNNING )
         {
             queue[g_currenttid]->state = Thread::READY;
         }
         g_currenttid += 1;
-        
-        std::cout << "void Scheduler::main() " << g_currenttid << "\n";
 
-        // Advances the queue. 
-        // Executing the function. 
+
+        // Advances the queue.
+        // Executing the function.
         g_currenttid = findreadyJob( g_currenttid );
+        std::cout << "void Scheduler::main() " << g_currenttid << "," << queue[g_currenttid]->total_quantums  <<  "\n";
         queue[g_currenttid]->state  = Thread::RUNNING;
         queue[g_currenttid]->total_quantums += 1;
+        g_total_quantums += 1;
+        MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
         vt_alarm(g_quantum_usecs);
         siglongjmp(queue[g_currenttid]->env[0],1);
     }
@@ -273,6 +312,7 @@ int Scheduler::uthread_mutex_lock()
     if ( g_mutex == tid )
     {
         MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
+        handleError();
         return -1;
     }
    
@@ -298,6 +338,7 @@ int Scheduler::uthread_mutex_unlock()
     if ( g_mutex == -1 )
     {
         MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
+        handleError();
         return -1;
     }
 
@@ -320,7 +361,7 @@ int Scheduler::uthread_get_tid()
 
 int Scheduler::uthread_get_total_quantums()
 {
-    return queue[currenttid]->total_quantums;
+    return g_total_quantums;
 }
 
 int Scheduler::uthread_get_quantums(int tid)
@@ -346,7 +387,7 @@ void test1()
         {
             
         }
-        Scheduler::getInstance().uthread_mutex_lock();
+//        Scheduler::getInstance().uthread_mutex_lock();
         j += i;
         std::cout << "hi2 " << j << std::endl;
     }
@@ -362,7 +403,7 @@ void test2()
         {   
             j = i;
         }
-        Scheduler::getInstance().uthread_mutex_lock();
+//        Scheduler::getInstance().uthread_mutex_lock();
         std::cout << "hi3 " << j <<  std::endl;
     } 
 
@@ -374,25 +415,57 @@ void test4(int sig)
     std::cout << "test4" <<std::endl;
 }
 
-int main(int argc, char const *argv[])
+void setSIGINT()
 {
-    
-	sa.sa_handler = &mainCaller;
+    sa.sa_handler = &mainCaller;
     sa.sa_flags = 0;
     saINT.sa_handler = &mainCaller;
 
     if (sigaction(SIGINT, &saINT,NULL) < 0) {
 		printf("sigaction error.");
 	}
+    signal(SIGVTALRM, &mainCaller);
+}
+//
+#ifdef DEBUG
+#define DEBUG
+void threadQuantumSleep(int threadQuants)
+{
+    /* Note, from the thread's standpoint, it is almost impossible for two consecutive calls to
+     * 'uthread_get_quantum' to yield a difference larger than 1, therefore, at some point, uthread_get_quantums(myId)
+     * must obtain 'end'.
+     *
+     * Theoretically, it's possible that the thread will be preempted before the condition check occurs, if this happens,
+     * the above won't hold, and you'll get an infinite loop. But this is unlikely, as the following operation should
+     * take much less than a microsecond
+
+     */
+//    assert (threadQuants > 0);
+    int myId = Scheduler::getInstance().uthread_get_tid();
+    int start = Scheduler::getInstance().uthread_get_quantums(myId);
+    int end = start + threadQuants;
+
+    std::cout << end << std::endl;
+
+    while (Scheduler::getInstance().uthread_get_quantums(myId)  <= end)
+    {
+    }
+}
+
+int main(int argc, char const *argv[])
+{
+
+
 
     signal(SIGVTALRM, &mainCaller);
 
     Scheduler::getInstance().uthread_init(1);
     // Scheduler::getInstance().uthread_spawn(  &test);
-    Scheduler::getInstance().uthread_spawn(  &test1 );
-    Scheduler::getInstance().uthread_spawn(  &test2 );
+//    Scheduler::getInstance().uthread_spawn(  &test1 );
+//    Scheduler::getInstance().uthread_spawn(  &test2 );
     // Scheduler::getInstance().main();
 
+    threadQuantumSleep(1);
     // test1();
     int j =0 ;
     for (;;)
@@ -400,7 +473,7 @@ int main(int argc, char const *argv[])
          int i = 0;
         for (; i< 100000000; i++)
         {
-            
+
         }
         j += i;
         std::cout << "hi5 " << j << std::endl;
@@ -408,3 +481,5 @@ int main(int argc, char const *argv[])
     // raise(SIGINT);
     return 0;
 }
+
+#endif

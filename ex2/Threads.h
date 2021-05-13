@@ -34,7 +34,7 @@ class Thread {
         int state;
     private:
         int tid;
-        int total_quantums;
+        int total_quantums = 0;
         sigjmp_buf env[1];
         void (*f) (void);
         char stack[STACK_SIZE];
@@ -67,6 +67,7 @@ class Scheduler {
         static int g_quantum_usecs;
         static int g_currenttid;
         static int g_mutex;
+        static int g_total_quantums;
         static std::list< Thread* > g_blockedMutexQueue;
 
         int quantum_usecs;
