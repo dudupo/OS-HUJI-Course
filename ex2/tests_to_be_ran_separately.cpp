@@ -75,12 +75,12 @@ void threadQuantumSleep(int threadQuants)
 {
     assert (threadQuants > 0);
 
-    std::cout << "hi " <<  std::endl;
+
     int myId = uthread_get_tid();
     int start = uthread_get_quantums(myId);
     int end = start + threadQuants;
 
-    std::cout << "hi " <<  end << ", " << myId << std::endl;
+
 
     /* Note, from the thread's standpoint, it is almost impossible for two consecutive calls to
      * 'uthread_get_quantum' to yield a difference larger than 1, therefore, at some point, uthread_get_quantums(myId)
@@ -90,10 +90,10 @@ void threadQuantumSleep(int threadQuants)
      * the above won't hold, and you'll get an infinite loop. But this is unlikely, as the following operation should
      * take much less than a microsecond
      */
-    while (uthread_get_quantums(myId)  <= end)
+    while (uthread_get_quantums(myId)  < end)
     {
     }
-    std::cout << "hi " <<  end << ", " << myId << std::endl;
+
 
 }
 
@@ -133,18 +133,18 @@ TEST(Test1, BasicFunctionality)
     // most CPP compilers will translate this to a normal function (there's no closure)
     auto t1 = []()
     {
-//        EXPECT_EQ(uthread_get_tid(), 1);
+        EXPECT_EQ(uthread_get_tid(), 1);
 
         // this thread has just begun, thus exactly 1 quantum was started by this thread
-//        EXPECT_EQ(uthread_get_quantums(1), 1);
+        EXPECT_EQ(uthread_get_quantums(1), 1);
 
         // main thread's quantums are unchanged
-//        EXPECT_EQ(uthread_get_quantums(0), 1);
+        EXPECT_EQ(uthread_get_quantums(0), 1);
 
         // this is the 2nd quantum in the program entire run
-//        EXPECT_EQ(uthread_get_total_quantums(), 2);
-//        ran = true;
-//        EXPECT_EQ ( uthread_terminate(1), 0);
+        EXPECT_EQ(uthread_get_total_quantums(), 2);
+        ran = true;
+        EXPECT_EQ ( uthread_terminate(1), 0);
     };
     EXPECT_EQ(uthread_spawn(t1), 1);
     // spawning a thread shouldn't cause a switch
@@ -158,7 +158,6 @@ TEST(Test1, BasicFunctionality)
     EXPECT_EQ(uthread_get_quantums(0), 1);
 
     threadQuantumSleep(1);
-    std::cout << " -- hi -- " << std::endl;
     // see implementation of this function for explanation
 
 
@@ -181,7 +180,7 @@ TEST(Test1, BasicFunctionality)
         return uthread_terminate(1);
     });
 
-
+//    std::cout << "hi \n";
    ASSERT_EXIT(uthread_terminate(0), ::testing::ExitedWithCode(0), "");
 }
 
@@ -989,6 +988,7 @@ TEST(Test14, MutexTest8)
         EXPECT_EQ(uthread_terminate(uthread_get_tid()),0);
     };
 
+    std::cout << "hi " << std::endl;
 
     EXPECT_EQ(uthread_spawn(t1), 1);
 
@@ -1000,7 +1000,6 @@ TEST(Test14, MutexTest8)
     threadQuantumSleep(1);
     threadQuantumSleep(1);
     threadQuantumSleep(1);
-
 
     EXPECT_TRUE(ran2);
 
