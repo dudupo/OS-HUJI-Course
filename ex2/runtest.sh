@@ -12,4 +12,5 @@
 ./cmake-build-debug/theTests --gtest_filter=Test12.MutexTest6
 ./cmake-build-debug/theTests --gtest_filter=Test13.MutexTest7
 ./cmake-build-debug/theTests --gtest_filter=Test14.MutexTest8
-
+./cmake-build-debug/theTests --gtest_filter=Test15.MutexTest9
+./cmake-build-debug/theTests --gtest_filter=Test16.MutexTest10

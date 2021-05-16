@@ -74,14 +74,9 @@ void initializeWithPriorities(int lengths)
 void threadQuantumSleep(int threadQuants)
 {
     assert (threadQuants > 0);
-
-
     int myId = uthread_get_tid();
     int start = uthread_get_quantums(myId);
     int end = start + threadQuants;
-
-
-
     /* Note, from the thread's standpoint, it is almost impossible for two consecutive calls to
      * 'uthread_get_quantum' to yield a difference larger than 1, therefore, at some point, uthread_get_quantums(myId)
      * must obtain 'end'.
@@ -90,11 +85,9 @@ void threadQuantumSleep(int threadQuants)
      * the above won't hold, and you'll get an infinite loop. But this is unlikely, as the following operation should
      * take much less than a microsecond
      */
-    while (uthread_get_quantums(myId)  < end)
+    while (uthread_get_quantums(myId) != end)
     {
     }
-
-
 }
 
 
@@ -128,7 +121,6 @@ TEST(Test1, BasicFunctionality)
     EXPECT_EQ(uthread_get_quantums(0), 1);
 
 
-
     static bool ran = false;
     // most CPP compilers will translate this to a normal function (there's no closure)
     auto t1 = []()
@@ -157,14 +149,12 @@ TEST(Test1, BasicFunctionality)
     EXPECT_EQ(uthread_get_total_quantums(), 1);
     EXPECT_EQ(uthread_get_quantums(0), 1);
 
-    threadQuantumSleep(1);
     // see implementation of this function for explanation
-
+    threadQuantumSleep(1);
 
     EXPECT_TRUE(ran);
     EXPECT_EQ(uthread_get_quantums(0), 2);
     EXPECT_EQ(uthread_get_total_quantums(), 3);
-
 
     // by now thread 1 was terminated, so operations on it should fail
     expect_thread_library_error([](){
@@ -180,7 +170,7 @@ TEST(Test1, BasicFunctionality)
         return uthread_terminate(1);
     });
 
-//    std::cout << "hi \n";
+
    ASSERT_EXIT(uthread_terminate(0), ::testing::ExitedWithCode(0), "");
 }
 
@@ -729,7 +719,7 @@ TEST(Test11, MutexTest5)
         EXPECT_EQ(uthread_mutex_lock(),0);
 
         ran = true;
-
+        std::cout << " hi ran" << "\n";
         threadQuantumSleep(1);
 
         EXPECT_EQ(uthread_terminate(uthread_get_tid()),0);
@@ -743,6 +733,7 @@ TEST(Test11, MutexTest5)
         // unlock from different thread should fail
         EXPECT_EQ(uthread_mutex_unlock(),-1);
 
+        std::cout << " hi ran2" << "\n";
         EXPECT_EQ(uthread_mutex_lock(),0);
 
         ran2 = true;
@@ -760,7 +751,9 @@ TEST(Test11, MutexTest5)
     threadQuantumSleep(1);
     threadQuantumSleep(1);
     threadQuantumSleep(1);
-    threadQuantumSleep(1);
+
+    for (int o = 0; o < 4; o++)
+        threadQuantumSleep(1);
 
 
     // both treads needs to run
@@ -970,6 +963,8 @@ TEST(Test14, MutexTest8)
 
         ran = true;
 
+        EXPECT_EQ(uthread_mutex_unlock(),0);
+
         EXPECT_EQ(uthread_terminate(uthread_get_tid()),0);
 
     };
@@ -985,10 +980,11 @@ TEST(Test14, MutexTest8)
 
         ran2 = true;
 
+        EXPECT_EQ(uthread_mutex_unlock(),0);
+
         EXPECT_EQ(uthread_terminate(uthread_get_tid()),0);
     };
 
-    std::cout << "hi " << std::endl;
 
     EXPECT_EQ(uthread_spawn(t1), 1);
 
@@ -1001,11 +997,155 @@ TEST(Test14, MutexTest8)
     threadQuantumSleep(1);
     threadQuantumSleep(1);
 
+
     EXPECT_TRUE(ran2);
 
 
     ASSERT_EXIT(uthread_terminate(0), ::testing::ExitedWithCode(0), "");
 }
+
+// doesn't assume fifo - i think
+TEST(Test15, MutexTest9)
+{
+
+    int priorites =  100 * MILLISECOND;
+    initializeWithPriorities(priorites);
+
+    static bool ran = false;
+    static bool ran2 = false;
+    auto t1 = []()
+    {
+        EXPECT_EQ(uthread_get_tid(), 1);
+
+        expect_thread_library_error(uthread_mutex_unlock);
+
+        EXPECT_EQ(uthread_mutex_lock(),0);
+
+
+
+        ran2 = true;
+
+        EXPECT_EQ(uthread_mutex_unlock(),0);
+
+        EXPECT_EQ(uthread_terminate(uthread_get_tid()),0);
+
+    };
+
+    auto t2 = [] {
+
+        EXPECT_EQ(uthread_get_tid(), 2);
+
+        EXPECT_EQ(uthread_mutex_unlock(),-1);
+
+        ran = true;
+
+        EXPECT_EQ(uthread_terminate(uthread_get_tid()),0);
+
+    };
+
+
+    EXPECT_EQ(uthread_spawn(t1), 1);
+
+    EXPECT_EQ(uthread_spawn(t2), 2);
+
+    EXPECT_EQ(uthread_mutex_lock(),0);
+
+    threadQuantumSleep(1);
+
+    EXPECT_TRUE(!ran2 && ran);
+
+    EXPECT_EQ(uthread_mutex_unlock(),0);
+
+    threadQuantumSleep(1);
+
+    EXPECT_TRUE(ran2 && ran);
+
+    ASSERT_EXIT(uthread_terminate(0), ::testing::ExitedWithCode(0), "");
+}
+
+// assumes fifo
+TEST(Test16, MutexTest10)
+{
+
+    int priorites =  100 * MILLISECOND;
+    initializeWithPriorities(priorites);
+
+    static bool ran = false;
+    static bool ran2 = false;
+    static bool ran3 = false;
+    auto t1 = []()
+    {
+        EXPECT_EQ(uthread_get_tid(), 1);
+
+        EXPECT_EQ(uthread_mutex_lock(),0);
+
+        ran = true;
+
+        threadQuantumSleep(1);
+
+        expect_thread_library_error(uthread_mutex_lock);
+
+        EXPECT_EQ(uthread_mutex_unlock(),0);
+
+        EXPECT_EQ(uthread_terminate(uthread_get_tid()),0);
+
+    };
+
+    auto t2 = [] {
+
+        EXPECT_EQ(uthread_get_tid(), 2);
+
+        EXPECT_EQ(uthread_mutex_lock(),0);
+
+        ran2 = true;
+
+        EXPECT_EQ(uthread_mutex_unlock(),0);
+
+        EXPECT_EQ(uthread_terminate(uthread_get_tid()),0);
+
+    };
+
+    auto t3 = [] {
+
+        EXPECT_EQ(uthread_get_tid(), 1);
+
+        EXPECT_EQ(uthread_mutex_lock(),0);
+
+        ran3 = true;
+
+        EXPECT_EQ(uthread_mutex_unlock(),0);
+
+        EXPECT_EQ(uthread_terminate(uthread_get_tid()),0);
+
+    };
+
+    EXPECT_EQ(uthread_spawn(t1), 1);
+
+    EXPECT_EQ(uthread_spawn(t2), 2);
+
+    threadQuantumSleep(1);
+
+    EXPECT_TRUE(!ran2 && ran);
+
+    EXPECT_EQ(uthread_mutex_lock(),0);
+
+    // all locked except 1 so will go there
+
+    EXPECT_TRUE(ran2 && ran);
+
+    EXPECT_EQ(uthread_spawn(t3),1);
+
+    threadQuantumSleep(1);
+
+    EXPECT_EQ(uthread_mutex_unlock(),0);
+
+    threadQuantumSleep(1);
+
+    EXPECT_TRUE(ran2 && ran && ran3);
+
+    ASSERT_EXIT(uthread_terminate(0), ::testing::ExitedWithCode(0), "");
+}
+
 
 
 

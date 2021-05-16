@@ -23,8 +23,10 @@ int g_quantum_usecs;
 int g_currenttid;
 int g_mutex = -1;
 int g_total_quantums = 0;
-std::list< Thread* > g_blockedMutexQueue;
 
+std::list< Thread* > g_fifoQueue;
+std::list< Thread* > g_blockedMutexQueue;
+std::list< Thread* > g_blockedQueue;
 
 void handleError( )
 {
@@ -38,7 +40,7 @@ void emptyf()
 
 
 void setSIGINT();
-void SchedulerMain();
+void SchedulerMain(int sig);
 
 #define MACRO_BLOCK_SIG( sigsetin, sigsetout )\
     sigset_t sigsetin  =  { SIGVTALRM, SIGINT };\
@@ -72,18 +74,17 @@ int uthread_init(int quantum_usecs)
         queue[i] = nullptr;
     }
     setSIGINT();
-    queue[0] = new Thread(&emptyf, 0);// ( &emptyf, 0);
-//    queue[0]->total_quantums = -1;
-//    g_total_quantums = -1;
+    queue[0] = new Thread(&emptyf, 0);
+    g_fifoQueue.push_back(queue[0]);
     g_currenttid = 0;
+
     if ( sigsetjmp(queue[0]->env[0], 1) != 0)
     {
         return 0;
     }
     else
     {
-        SchedulerMain();
-
+        SchedulerMain(0);
     }
     return 0;
 }
@@ -113,6 +114,7 @@ int uthread_spawn(void (*f)(void))
         return -1;
     }
     queue[tid] = new Thread(f, tid);
+    g_fifoQueue.push_back( queue[tid]  );
     MACRO_UNBLOCK_SIG( sigsetin, sigsetout )
     return tid;
 }
@@ -160,13 +162,12 @@ int uthread_terminate(int tid)
     }
     else
     {
-        std::list<Thread *>::iterator it = g_blockedMutexQueue.begin();
-        for (; it!= g_blockedMutexQueue.end() &&\
-        (*it)->tid != tid; ++it) { }
-        if ( it != g_blockedMutexQueue.end())
+
+        if (g_mutex == tid)
         {
-            g_blockedMutexQueue.erase(it);
+            uthread_mutex_unlock();
         }
+//        std::cout << " terminate " << tid << "\n";
         queue[tid] = nullptr;
     }
     MACRO_UNBLOCK_SIG( sigsetin, sigsetout )
@@ -197,7 +198,15 @@ int uthread_block(int tid)
         return  -1;
     }
     queue[tid]->state = Thread::BLOCKED;
+    if ( tid == uthread_get_tid())
+    {
+        MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
+        raise(SIGINT);
+    }
     MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
+
+
+
     return 0;
 }
 
@@ -214,8 +223,8 @@ int uthread_resume(int tid)
     // handle error
     MACRO_BLOCK_SIG(sigsetin, sigsetout)
     CHECK_EXISTENCE
-
     queue[tid]->state = Thread::READY;
+    g_fifoQueue.push_back(queue[tid]);
     MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
     return 0;
 }
@@ -231,7 +240,7 @@ void mainCaller(int sig);
 
 unsigned int vt_alarm (int miliseconds)
 {
-    signal(SIGVTALRM, &mainCaller);
+    signal(SIGVTALRM, &SchedulerMain);
 
     newitimer.it_interval.tv_usec = 0;
     newitimer.it_interval.tv_sec = 0;
@@ -260,80 +269,95 @@ void reset_itimer()
 
 void mainCaller(int sig)
 {
-    MACRO_BLOCK_SIG(sigsetin, sigsetout)
 
-    if (sig != -1)
-    {
-        MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
-
-        if (  contain( g_currenttid )  )
-        {
-            int ret = sigsetjmp(queue[g_currenttid]->env[0], 1);
-            if (ret != 0)
-            {
-                return;
-            }
-        }
-    }
-    reset_itimer();
-    MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
-    siglongjmp(buf, 1);
-}
-
-int findreadyJob( int hist )
-{
-
-    int i = hist;
-    for (; (queue[i] == nullptr) || (
-            queue[i]->state != Thread::READY );
-           i = (i+1)% MAX_THREAD_NUM ) { }
-    return i;
 }
 
 void SIGSEGVHandler(int sig) {
     MACRO_BLOCK_SIG(sigsetin, sigsetout)
     int tid = uthread_get_tid();
-    uthread_terminate(tid);
+    if (contain(tid) )
+        uthread_terminate(tid);
     MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
     while (1) {
     }
 }
 
-void SchedulerMain()
+void SchedulerMain(int sig)
 {
-    // Setting up jumping location.
-    if (!sigsetjmp(buf, 1))
-    {
-        mainCaller(-1);
-    }
-    else
-    {
-        //asm("int $3");
-        MACRO_BLOCK_SIG(sigsetin, sigsetout)
 
+    MACRO_BLOCK_SIG(sigsetin, sigsetout)
+    reset_itimer();
 
-        if (  contain( g_currenttid )  ) {
-            if (queue[g_currenttid]->state == Thread::RUNNING) {
-                queue[g_currenttid]->state = Thread::READY;
+    if (sig != 0 ) {
+        if (contain(g_currenttid)) {
+            if ( sig == SIGVTALRM) {
+                g_fifoQueue.push_back(queue[g_currenttid]);
+            }
+            if (sigsetjmp(queue[g_currenttid]->env[0], 1) != 0) {
+                return;
+            }
+            else
+            {
+                reset_itimer();
             }
         }
-        g_currenttid = (g_currenttid + 1) % MAX_THREAD_NUM ;
+    }
+    sigprocmask(SIG_BLOCK ,&sigsetin, &sigsetout);
+     if (contain(g_currenttid)) {
+         if (queue[g_currenttid]->state == Thread::RUNNING) {
+             queue[g_currenttid]->state = Thread::READY;
+         }
+     }
+    std::list<std::list< Thread *>::iterator> del;
 
 
-        // Advances the queue.
-        // Executing the function.
-        g_currenttid = findreadyJob( g_currenttid );
-        queue[g_currenttid]->state  = Thread::RUNNING;
+    if( contain(0)) {
+        auto iter = g_fifoQueue.begin();
+
+        for (; iter != g_fifoQueue.end(); ++iter) {
+            if (!contain((*iter)->tid)) {
+                del.push_back(iter);
+            }
+        }
+
+        for (auto it : del) {
+            g_fifoQueue.erase(it);
+        }
+
+        std::list<std::list<Thread *>::iterator> shift_list;
+
+        for (iter = g_fifoQueue.begin(); iter != g_fifoQueue.end() && \
+                    (*iter)->state != Thread::READY;
+             ++iter) {
+
+            if ( (*iter)->state == Thread::BLOCKED )
+            {
+                shift_list.push_back(iter);
+            }
+        }
+
+        for ( auto& it : shift_list)
+        {
+            g_fifoQueue.erase( it );
+//            g_fifoQueue.push_back(*it);
+        }
+
+        g_currenttid = (*iter)->tid;// findreadyJob(g_currenttid);
+//        std::cout << "tid " << g_currenttid << "\n";
+        queue[g_currenttid]->state = Thread::RUNNING;
         g_total_quantums += 1;
         queue[g_currenttid]->total_quantums += 1;
-        MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
+
+        g_fifoQueue.erase(iter);
+
+
         vt_alarm(g_quantum_usecs);
-        signal( SIGSEGV, &SIGSEGVHandler );
-        siglongjmp(queue[g_currenttid]->env[0],1);
-
-
+        signal(SIGSEGV, &SIGSEGVHandler);
+        MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
+        siglongjmp(queue[g_currenttid]->env[0], 1);
+        std::cout << " end function " << std::endl;
     }
-//    raise(SIGINT);
+    MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
 }
 
 /*
@@ -359,13 +383,20 @@ int uthread_mutex_lock()
         return -1;
     }
 
+
     while ( g_mutex != -1 )
     {
+        if ( queue[tid]->state != Thread::BLOCKED ) {
+            g_blockedMutexQueue.push_back(queue[tid]);
+            queue[tid]->state = Thread::BLOCKED;
+            g_blockedMutexQueue.push_back(queue[tid]);
+            raise( SIGINT );
+            MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
+//            uthread_block( uthread_get_tid() );
+        }
         sigprocmask( SIG_BLOCK,  &sigsetin, &sigsetout);
-        g_blockedMutexQueue.push_back(queue[tid]);
-        queue[tid]->state = Thread::BLOCKED;
-        MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
     }
+
     g_mutex = tid;
     MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
     return 0;
@@ -393,13 +424,12 @@ int uthread_mutex_unlock()
 
     g_mutex = -1;
     // relase a witing thread.
-    if ( g_blockedMutexQueue.size() > 0 )
-    {
-        if (g_blockedMutexQueue.front() != nullptr) {
-            g_blockedMutexQueue.front()->state = Thread::READY;
-        }
-        g_blockedMutexQueue.pop_front();
+
+    for (auto& it : g_blockedMutexQueue) {
+        it->state = Thread::READY;
+        g_fifoQueue.push_back(it);
     }
+    g_blockedMutexQueue.clear();
     MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
     return 0;
 }
@@ -411,7 +441,11 @@ int uthread_mutex_unlock()
 */
 int uthread_get_tid()
 {
-    return g_currenttid;
+    int ret;
+    MACRO_BLOCK_SIG(sigsetin, sigsetout)
+    ret = g_currenttid;
+    MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
+    return ret;
 }
 
 
@@ -425,7 +459,11 @@ int uthread_get_tid()
 */
 int uthread_get_total_quantums()
 {
-    return g_total_quantums;
+    int ret;
+    MACRO_BLOCK_SIG(sigsetin, sigsetout)
+    ret = g_total_quantums;
+    MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
+    return ret;
 }
 
 
@@ -441,8 +479,13 @@ int uthread_get_total_quantums()
 */
 int uthread_get_quantums(int tid)
 {
+
+    int ret;
+    MACRO_BLOCK_SIG(sigsetin, sigsetout)
     CHECK_EXISTENCE
-    return queue[tid]->total_quantums;
+    ret = queue[tid]->total_quantums;
+    MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
+    return ret;
 }
 
 
@@ -460,7 +503,7 @@ void test()
 void test1()
 {
     int j =0;
-    for ( ;; )
+    for (int k=0 ; k < 100; k++ )
     {
         int i = 0;
         for (; i< 300000; i++)
@@ -471,6 +514,7 @@ void test1()
         j += i;
         std::cout << "hi2 " << j << std::endl;
     }
+    uthread_terminate(3);
 }
 void test2()
 {
@@ -487,7 +531,7 @@ void test2()
         std::cout << "hi3 " << j <<  std::endl;
     }
 
-    uthread_mutex_unlock();
+//    uthread_mutex_unlock();
 }
 
 void test4(int sig)
@@ -497,14 +541,14 @@ void test4(int sig)
 
 void setSIGINT()
 {
-    sa.sa_handler = &mainCaller;
+    sa.sa_handler = &SchedulerMain;
     sa.sa_flags = 0;
-    saINT.sa_handler = &mainCaller;
+    saINT.sa_handler = &SchedulerMain;
 
     if (sigaction(SIGINT, &saINT,NULL) < 0) {
         printf("sigaction error.");
     }
-    signal(SIGVTALRM, &mainCaller);
+    signal(SIGVTALRM, &SchedulerMain);
 }
 //
 #ifdef DEBUG
@@ -535,9 +579,7 @@ void threadQuantumSleep(int threadQuants)
 int main(int argc, char const *argv[])
 {
 
-
-
-    signal(SIGVTALRM, &mainCaller);
+    signal(SIGVTALRM, &SchedulerMain);
 
     uthread_init(100);
     uthread_spawn(  &test);
@@ -548,7 +590,7 @@ int main(int argc, char const *argv[])
 //    threadQuantumSleep(1);
 //     test1();
     int j =0 ;
-    for (;;)
+    for (int k = 0; k < 10; k++)
     {
         int i = 0;
         for (; i< 200000000; i++)

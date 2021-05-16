@@ -60,11 +60,10 @@ Thread::Thread ( void(*f)(void), int tid ) : state(READY), f(f), tid(tid)
     sp = (address_t)this->stack + STACK_SIZE - sizeof(address_t);
     pc = (address_t) f;
     
-    sigsetjmp(this->env[0], 1);
+    sigsetjmp(this->env[0], 1) ;
     (this->env[0]->__jmpbuf)[JB_SP] = translate_address(sp);
     (this->env[0]->__jmpbuf)[JB_PC] = translate_address(pc);
     sigemptyset(&this->env[0]->__saved_mask);
-
     this->total_quantums =0;
 }
 void Thread::run()
