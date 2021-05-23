@@ -3,7 +3,11 @@
 -- Generating done
 -- Build files have been written to: /cs/usr/davidponar/OS-HUJI-Course/ex2/cmake-build-debug/googletest-download
 [ 11%] Performing update step for 'googletest'
-Current branch master is up to date.
+From https://github.com/google/googletest
+   662fe38e..9741c422  master     -> origin/master
+ + 14e9b51b...31142791 4523B6410BFCD3289597FA2B5B6E18DE -> origin/4523B6410BFCD3289597FA2B5B6E18DE  (forced update)
+First, rewinding head to replay your work on top of it...
+Fast-forwarded master to origin/master.
 [ 22%] No configure step for 'googletest'
 [ 33%] No build step for 'googletest'
 [ 44%] No install step for 'googletest'

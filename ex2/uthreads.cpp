@@ -3,19 +3,16 @@
 #include "Threads.h"
 #include <iostream>
 
-// #ifndef _UTHREADS_H
-// #define _UTHREADS_H
 
 /*
- * User-Level Threads Library (uthreads)
- * Author: OS, os@cs.huji.ac.il
-*/
-
-// #define MAX_THREAD_NUM 100 /* maximal number of threads */
-// #define STACK_SIZE 4096 /* stack size per thread (in bytes) */
-
-/* External interface */
-
+ *  Memory structre :
+ *    queue, array of threads pointers, lives in the code section.-
+ *    -responsible for defined a static memory address, the other-
+ *    -list holds pointers which point to that array.
+ *
+ *    g_fifoQueue, list which responsible to mange the order of-
+ *    -the threads executions.
+ */
 
 
 Thread * queue[MAX_THREAD_NUM];
@@ -26,20 +23,39 @@ int g_total_quantums = 0;
 
 std::list< Thread* > g_fifoQueue;
 std::list< Thread* > g_blockedMutexQueue;
-std::list< Thread* > g_blockedQueue;
 
+
+static struct itimerval old, newitimer;
+static struct sigaction saVTALRM = {0};
+static struct sigaction saINT = {0};
+
+
+/*
+ * Description: This function prints an error message.
+ * should called when error in the library level happend.
+ * Return value: nothing.
+*/
 void handleError( )
 {
     std::cerr << "thread library error: " << " ERROR " << std::endl;
 }
-
+/*
+ * Description: empty function. used as well defined adrress.
+ * Return value: nothing.
+*/
 void emptyf()
 {
-    std::cout << "emptf\n";
+
 }
-
-
+/*
+ * Description: initialize the sigaction entities.
+ * Return value: nothing.
+*/
 void setSIGINT();
+/*
+ * Description, mange the scheduling algortihem.
+ * Return value, nothing.
+ */
 void SchedulerMain(int sig);
 
 #define MACRO_BLOCK_SIG( sigsetin, sigsetout )\
@@ -155,7 +171,6 @@ int uthread_terminate(int tid)
     CHECK_EXISTENCE
     if ( tid == 0 )
     {
-        std::cout << " terminate \n";
         queue[0] = new Thread(&exitfunc, 0);
         exit(0);
         MACRO_UNBLOCK_SIG( sigsetin, sigsetout )
@@ -229,15 +244,12 @@ int uthread_resume(int tid)
     return 0;
 }
 
-
-
-static jmp_buf buf;
-volatile sig_atomic_t mux = false;
-static struct itimerval old, newitimer;
-static struct sigaction sa = {0};
-static struct sigaction saINT = {0};
-void mainCaller(int sig);
-
+/*
+ * Description, this fucntion set an  virtual time alerm-
+ * -to single qauntum.
+ * Return value: On success, return the time. On failure, return 0.
+ * THIS CODE HAS BEEN TAKEN FROM STACKOVERFLOW.
+*/
 unsigned int vt_alarm (int miliseconds)
 {
     signal(SIGVTALRM, &SchedulerMain);
@@ -253,9 +265,12 @@ unsigned int vt_alarm (int miliseconds)
         return 0;
     }
     else
-        return old.it_value.tv_sec;
+        return old.it_value.tv_usec;
 }
-
+/*
+ * Description, this function resets the timer.
+ * Return value: nothing.
+ */
 void reset_itimer()
 {
     if (setitimer (ITIMER_VIRTUAL, NULL, NULL) == -1)
@@ -267,21 +282,43 @@ void reset_itimer()
 
 
 
-void mainCaller(int sig)
-{
-
-}
-
 void SIGSEGVHandler(int sig) {
     MACRO_BLOCK_SIG(sigsetin, sigsetout)
-    int tid = uthread_get_tid();
-    if (contain(tid) )
-        uthread_terminate(tid);
-    MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
-    while (1) {
+
+    if ( sig == SIGSEGV) {
+        int tid = uthread_get_tid();
+        if (contain(tid))
+            uthread_terminate(tid);
+        MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
+        while (1) {
+        }
     }
 }
 
+/*
+ * Description: removes the bodies.
+ * Return value: nothing.
+ */
+void deleteDeadThreads( )
+{
+
+    std::list<std::list< Thread *>::iterator> del;
+    auto iter = g_fifoQueue.begin();
+    for (;iter != g_fifoQueue.end(); ++iter) {
+        if (!contain((*iter)->tid)) {
+            del.push_back(iter);
+        }
+    }
+
+    for (auto it : del) {
+        g_fifoQueue.erase(it);
+    }
+}
+
+/*
+ * Description, mange the scheduling algortihem.
+ * Return value, nothing.
+ */
 void SchedulerMain(int sig)
 {
 
@@ -289,73 +326,84 @@ void SchedulerMain(int sig)
     reset_itimer();
 
     if (sig != 0 ) {
+        // if the thread doesn't end his life.
         if (contain(g_currenttid)) {
+            // if the thread utilized it's whole time interval.
             if ( sig == SIGVTALRM) {
+                // push himself back into the queue.
                 g_fifoQueue.push_back(queue[g_currenttid]);
             }
+            // remember the context.
             if (sigsetjmp(queue[g_currenttid]->env[0], 1) != 0) {
+                // next time the thread will called, it will get into
+                // this line, and return back to the point, where the alerm catch him.
+                // ( or into the blocked section, point ).
                 return;
             }
             else
             {
+                // the case, we only override the context holder.
+                // then, just reset the timer.
                 reset_itimer();
             }
         }
     }
+    // block again the signals.
     sigprocmask(SIG_BLOCK ,&sigsetin, &sigsetout);
-     if (contain(g_currenttid)) {
+
+    /*
+     *  change the status of the former thread from running-
+     *  -to ready. ( in case it's not blocked ).
+     */
+    if (contain(g_currenttid)) {
          if (queue[g_currenttid]->state == Thread::RUNNING) {
              queue[g_currenttid]->state = Thread::READY;
          }
      }
     std::list<std::list< Thread *>::iterator> del;
 
-
+    // in case the main thread, still running ( the user, didn't kill the
+    // the program ). then,..
     if( contain(0)) {
-        auto iter = g_fifoQueue.begin();
-
-        for (; iter != g_fifoQueue.end(); ++iter) {
-            if (!contain((*iter)->tid)) {
-                del.push_back(iter);
-            }
-        }
-
-        for (auto it : del) {
-            g_fifoQueue.erase(it);
-        }
-
+        // erase dead threads.
+        deleteDeadThreads();
         std::list<std::list<Thread *>::iterator> shift_list;
-
-        for (iter = g_fifoQueue.begin(); iter != g_fifoQueue.end() && \
-                    (*iter)->state != Thread::READY;
-             ++iter) {
+        // pick the head of our fifo, while, erasing the
+        // the blocked threads.
+        auto iter = g_fifoQueue.begin();
+        for (; iter != g_fifoQueue.end() && \
+                    (*iter)->state != Thread::READY; ++iter) {
 
             if ( (*iter)->state == Thread::BLOCKED )
             {
                 shift_list.push_back(iter);
             }
         }
-
+        // this segment assume that the blocked threads are
+        // still exsist in the blocked list. erase, them from
+        // the ready queue.
         for ( auto& it : shift_list)
         {
             g_fifoQueue.erase( it );
-//            g_fifoQueue.push_back(*it);
         }
-
-        g_currenttid = (*iter)->tid;// findreadyJob(g_currenttid);
-//        std::cout << "tid " << g_currenttid << "\n";
+        // preparing for running the chosen thread.
+        g_currenttid = (*iter)->tid;
+        //  update it's status and it's quantum counter.
         queue[g_currenttid]->state = Thread::RUNNING;
         g_total_quantums += 1;
         queue[g_currenttid]->total_quantums += 1;
-
+        // remove it, from the queue.
         g_fifoQueue.erase(iter);
-
-
+        // set the virtual alerm.
         vt_alarm(g_quantum_usecs);
+        // set the signal, which will be activated when
+        // the thread will be killed.
         signal(SIGSEGV, &SIGSEGVHandler);
+        // unblock the signal.
         MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
+        // good lack.
         siglongjmp(queue[g_currenttid]->env[0], 1);
-        std::cout << " end function " << std::endl;
+
     }
     MACRO_UNBLOCK_SIG(sigsetin, sigsetout)
 }
@@ -423,7 +471,7 @@ int uthread_mutex_unlock()
     }
 
     g_mutex = -1;
-    // relase a witing thread.
+    // release a witting thread.
 
     for (auto& it : g_blockedMutexQueue) {
         it->state = Thread::READY;
@@ -489,60 +537,14 @@ int uthread_get_quantums(int tid)
 }
 
 
-
-
-void test()
-{
-    std::cout << "hi" << std::endl;
-//    for(;;)
-//    {
-//
-//    }
-//    asm("int $3");
-}
-void test1()
-{
-    int j =0;
-    for (int k=0 ; k < 100; k++ )
-    {
-        int i = 0;
-        for (; i< 300000; i++)
-        {
-
-        }
-//        uthread_mutex_lock();
-        j += i;
-        std::cout << "hi2 " << j << std::endl;
-    }
-    uthread_terminate(3);
-}
-void test2()
-{
-    struct itimerval old, newitimer;
-    getitimer( ITIMER_REAL, &old );
-    int j = 0;
-    for ( ;; )
-    {
-        for (int i = 0; i< 1000000; i++)
-        {
-            j = i;
-        }
-//       uthread_mutex_lock();
-        std::cout << "hi3 " << j <<  std::endl;
-    }
-
-//    uthread_mutex_unlock();
-}
-
-void test4(int sig)
-{
-    std::cout << "test4" <<std::endl;
-}
-
+/*
+ * Description: initialize the sigaction entities.
+ * Return value: nothing.
+*/
 void setSIGINT()
 {
-    sa.sa_handler = &SchedulerMain;
-    sa.sa_flags = 0;
+    saVTALRM.sa_handler = &SchedulerMain;
+    saVTALRM.sa_flags = 0;
     saINT.sa_handler = &SchedulerMain;
 
     if (sigaction(SIGINT, &saINT,NULL) < 0) {
@@ -550,58 +552,4 @@ void setSIGINT()
     }
     signal(SIGVTALRM, &SchedulerMain);
 }
-//
-#ifdef DEBUG
-#define DEBUG
-void threadQuantumSleep(int threadQuants)
-{
-    /* Note, from the thread's standpoint, it is almost impossible for two consecutive calls to
-     * 'uthread_get_quantum' to yield a difference larger than 1, therefore, at some point, uthread_get_quantums(myId)
-     * must obtain 'end'.
-     *
-     * Theoretically, it's possible that the thread will be preempted before the condition check occurs, if this happens,
-     * the above won't hold, and you'll get an infinite loop. But this is unlikely, as the following operation should
-     * take much less than a microsecond
 
-     */
-//    assert (threadQuants > 0);
-    int myId = uthread_get_tid();
-    int start = uthread_get_quantums(myId);
-    int end = start + threadQuants;
-
-    std::cout << end << std::endl;
-
-    while (uthread_get_quantums(myId)  <= end)
-    {
-    }
-}
-
-int main(int argc, char const *argv[])
-{
-
-    signal(SIGVTALRM, &SchedulerMain);
-
-    uthread_init(100);
-    uthread_spawn(  &test);
-    uthread_spawn(  &test1 );
-    uthread_spawn(  &test2 );
-//     Scheduler::getInstance().main();
-
-//    threadQuantumSleep(1);
-//     test1();
-    int j =0 ;
-    for (int k = 0; k < 10; k++)
-    {
-        int i = 0;
-        for (; i< 200000000; i++)
-        {
-
-        }
-        j += i;
-        std::cout << "hi5 " << j << std::endl;
-    }
-    // raise(SIGINT);
-    return 0;
-}
-
-#endif

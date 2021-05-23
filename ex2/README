@@ -1,0 +1,26 @@
+davidponar
+David Ponarovsky 208504050
+EX: 2
+
+FILES:
+uthreds.cpp
+Threads.h
+Threads.cpp
+README
+
+ANSWERS:
+Q1:
+    One of the uses is mange user interface (gui) on one hand we want to draw on
+    the screen different things in parallel. on the other hand, we might want that
+    the threads will have convinenat acsses to program parameters as window size, font
+    size and more.
+
+Q2:
+    the main advantage is that the tabs of the chorme compete on resourse as
+    individual, so they get from the operating system more quantums.
+    the main disadvantge, is that each thread get a single thread slice of RAM,
+    so it makes the chorme application an hevaiy one, and
+    might cause to starvetion of other application.
+
+Q3:
+    the first, siganls are from the keyborod, 
