@@ -23,4 +23,17 @@ Q2:
     might cause to starvetion of other application.
 
 Q3:
-    the first, siganls are from the keyborod, 
+    first, each time the user typing on keyborod, he raises a keyboard interupt SIGINT,
+     and then the charters are insert into the shell input line, then after type enter,
+      the shell call parser the command, and ask from the operating system to execute
+        the kill command. the operating system frease the other threads and kill the
+         the given process. finally the given program takes the command in order to
+          execute final steps, as clean junk.. etc. and then just death.
+
+Q4:
+  SIGALRM is sent when real or clock time elapses.
+  - for example, we might want to use SIGARLM in case we want to monitor
+  how mach time in seconds the whole run occuer.
+  SIGVTALRM is sent when CPU time used by the process elapses.
+  - for example, we might want to use SIGVTALRM in case we want to mange
+   how mach resource each inner thread will get from the main process.
