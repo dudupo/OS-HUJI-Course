@@ -66,7 +66,3 @@ Thread::Thread ( void(*f)(void), int tid ) : state(READY), f(f), tid(tid)
     sigemptyset(&this->env[0]->__saved_mask);
     this->total_quantums =0;
 }
-void Thread::run()
-{
-
-}

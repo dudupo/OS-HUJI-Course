@@ -6,6 +6,18 @@
 
 #IncludeRegexTransform: 
 
+/cs/usr/davidponar/OS-HUJI-Course/ex2/Threads.cpp
+Threads.h
+/cs/usr/davidponar/OS-HUJI-Course/ex2/Threads.h
+iostream
+-
+list
+-
+utility
+-
+vector
+-
+
 /cs/usr/davidponar/OS-HUJI-Course/ex2/Threads.h
 list
 -

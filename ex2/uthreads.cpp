@@ -182,7 +182,6 @@ int uthread_terminate(int tid)
         {
             uthread_mutex_unlock();
         }
-//        std::cout << " terminate " << tid << "\n";
         queue[tid] = nullptr;
     }
     MACRO_UNBLOCK_SIG( sigsetin, sigsetout )
