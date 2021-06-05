@@ -5,7 +5,7 @@ LD=g++
 EXESRC=SampleClient.cpp
 EXEOBJ=$(EXESRC:.cpp=.o)
 
-INCS=-I.
+INCS=-I..
 CFLAGS = -Wall -std=c++11 -pthread -g $(INCS)
 CXXFLAGS = -Wall -std=c++11 -pthread -g $(INCS)
 LDFLAGS = -L. -lMapReduceFramework
