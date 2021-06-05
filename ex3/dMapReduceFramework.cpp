@@ -12,13 +12,13 @@
 #include <iostream>
 #define DEBUG
 
-inline void log( char * str )
-{
-    #ifdef DEBUG
-    std::cout << "[" << __FUNCTION__ <<  "]" << "-";
+#ifdef DEBUG
+#define log(str)\
+    std::cout << "[" << __FUNCTION__ <<  "]" << "-";\
     std::cout << str << "\n";
-    #endif
-}
+#else
+    
+#endif
 
 
 // absoulte position 
@@ -29,7 +29,9 @@ pthread_t ** threads;
 class GlobalEnv {
     public :
     GlobalEnv(const InputVec& inputVec, OutputVec& outputVec, const MapReduceClient& client, int multiThreadLevel) : inputVec(inputVec),
-     outputVec(outputVec), client(client), map(), intermediateVecs(), barrier(multiThreadLevel), _size( inputVec.size()) { }
+     outputVec(outputVec), client(client), map(),
+      intermediateVecs(), barrier(multiThreadLevel), _size( inputVec.size()),
+      mutex(PTHREAD_MUTEX_INITIALIZER) { }
     
     InputVec inputVec;
     OutputVec& outputVec;
@@ -37,6 +39,8 @@ class GlobalEnv {
     Barrier barrier; 
     stage_t stage = UNDEFINED_STAGE;
     
+    pthread_mutex_t mutex;
+
     // absoulte memmory.
     std::vector<IntermediateVec*> intermediateVecs; 
 
@@ -51,14 +55,36 @@ class GlobalEnv {
     std::map<K2* , IntermediateVec*, cmpByStringLength > map; 
     
     float _size;
+    
+    void inline lock()
+    {
+        log("")
+        if (pthread_mutex_lock(&mutex) != 0){
+		    fprintf(stderr, "[[Barrier]] error on pthread_mutex_lock");
+		    exit(1);
+	    }
+    }
+
+    void inline unlock()
+    {
+        log("")
+        if (pthread_mutex_unlock(&mutex) != 0) {
+		    fprintf(stderr, "[[Barrier]] error on pthread_mutex_unlock");
+		    exit(1);
+	    }
+    }
 
     IntermediateVec * mappop( ) {
+
+        lock();
         IntermediateVec * ret = this->map.begin()->second;
         this->map.erase(this->map.begin());
+        unlock();
         return ret;
     }
 
     void emit2 (K2* key, V2* value) {
+        lock();
         if ( this->map.find(key) == this->map.end() )
         { 
             this->intermediateVecs.push_back( new IntermediateVec() );
@@ -66,13 +92,15 @@ class GlobalEnv {
         }
         this->map[key]->push_back( IntermediatePair( key, value));
         
-        log( "[emit2] i was here" );
-        // std::cout
+        log("");
+        unlock();
     }
 
     void emit3 (K3* key, V3* value) {
+        lock();
         this->outputVec.push_back( OutputPair( key, value ) );
-        log( "[emit3] i was here" );
+        log("");
+        unlock();
     }
 
 };
@@ -94,29 +122,34 @@ void * map_reduce_call (void * args)
     
     globalEnv->stage=MAP_STAGE;
 
+    globalEnv->lock();
+
     // while there are still missions in the queue. 
     while ( globalEnv->inputVec.size() > 0 ){
         // pop one and execute it.
         InputPair pair = globalEnv->inputVec.back();
         globalEnv->inputVec.pop_back();
+        globalEnv->unlock();
+        
         globalEnv->client.map(pair.first, pair.second, context);
+        globalEnv->lock();
     }
+    globalEnv->unlock();
     
-    globalEnv->barrier.barrier();
+    globalEnv->barrier.barrier();    globalEnv->stage=SHUFFLE_STAGE;
+
     globalEnv->stage=SHUFFLE_STAGE;
     shuffle();
     globalEnv->stage=REDUCE_STAGE;
     globalEnv->barrier.barrier();
-    std::cout <<  globalEnv->map.size() << "\n";
+    
+    globalEnv->lock();
     while ( globalEnv->map.size() > 0 ){
+        globalEnv->unlock();
         globalEnv->client.reduce(globalEnv->mappop(), context);        
+        globalEnv->lock();
     }
-
-    for ( auto pair : globalEnv->outputVec)
-    {
-        std::cout<< pair.first << "\n";
-    }
-
+    globalEnv->unlock();
 }
 
 
@@ -172,7 +205,6 @@ void getJobState(JobHandle job, JobState* state) {
 void closeJobHandle(JobHandle job) { 
  
 }
-
 
 
 void emit2 (K2* key, V2* value, void* context) {
