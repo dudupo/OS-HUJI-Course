@@ -70,7 +70,7 @@ int main(int argc, char** argv)
 {
 	CounterClient client;
 	InputVec inputVec;
-	OutputVec outputVec;
+	OutputVec outputVec, outputVec2;
 	VString s1("This string is full of characters");
 	VString s2("Multithreading is awesome");
 	VString s3("race conditions are bad");
@@ -80,6 +80,7 @@ int main(int argc, char** argv)
 	JobState state;
     JobState last_state={UNDEFINED_STAGE,0};
 	JobHandle job = startMapReduceJob(client, inputVec, outputVec, 4);
+	startMapReduceJob(client, inputVec, outputVec2 , 4);
 	getJobState(job, &state);
     
 	while (state.stage != REDUCE_STAGE || state.percentage != 100.0)
