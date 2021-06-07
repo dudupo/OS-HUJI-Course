@@ -79,9 +79,9 @@ int main(int argc, char** argv)
 	inputVec.push_back({nullptr, &s3});
 	JobState state;
     JobState last_state={UNDEFINED_STAGE,0};
-	JobHandle job = startMapReduceJob(client, inputVec, outputVec, 4);
-	startMapReduceJob(client, inputVec, outputVec2 , 4);
-	getJobState(job, &state);
+//	JobHandle job = startMapReduceJob(client, inputVec, outputVec, 5);
+    JobHandle job2 = startMapReduceJob(client, inputVec, outputVec2 , 21);
+	getJobState(job2, &state);
     
 	while (state.stage != REDUCE_STAGE || state.percentage != 100.0)
 	{
@@ -91,23 +91,32 @@ int main(int argc, char** argv)
         }
 		usleep(100000);
         last_state = state;
-		getJobState(job, &state);
+		getJobState(job2, &state);
 	}
 	printf("stage %d, %f%% \n", 
 			state.stage, state.percentage);
-	printf("Done!\n");
+	printf("Done! \n" );
 	
-	closeJobHandle(job);
+//	closeJobHandle(job);
+	closeJobHandle(job2);
 	
-	for (OutputPair& pair: outputVec) {
-		char c = ((const KChar*)pair.first)->c;
-		int count = ((const VCount*)pair.second)->count;
-		printf("The character %c appeared %d time%s\n", 
-			c, count, count > 1 ? "s" : "");
-		delete pair.first;
-		delete pair.second;
-	}
-	
+//	for (OutputPair& pair: outputVec) {
+//		char c = ((const KChar*)pair.first)->c;
+//		int count = ((const VCount*)pair.second)->count;
+//		printf("The character %c appeared %d time%s\n",
+//			c, count, count > 1 ? "s" : "");
+//		delete pair.first;
+//		delete pair.second;
+//	}
+    for (OutputPair& pair: outputVec2) {
+        char c = ((const KChar*)pair.first)->c;
+        int count = ((const VCount*)pair.second)->count;
+        printf("second run: The character %c appeared %d time%s\n",
+               c, count, count > 1 ? "s" : "");
+        delete pair.first;
+        delete pair.second;
+    }
+    printf("Done! \"Done! \n" );
 	return 0;
 }
 

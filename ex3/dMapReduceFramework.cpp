@@ -10,13 +10,16 @@
 
 #include <string>
 #include <iostream>
+#include <atomic>
+
 #define DEBUG
 
 #ifdef DEBUG
 #define log(str)\
     std::cout << "[" << __FUNCTION__ <<  "]" << "-";\
-    std::cout << str << "\n";
-#else // chaya: what?
+    std::cout << str << " ";                       \
+    std::cout << pthread_self() << "\n";
+#else
     
 #endif
 
@@ -30,7 +33,7 @@ class GlobalEnv {
     GlobalEnv(const InputVec& inputVec, OutputVec& outputVec,
      const MapReduceClient& client, int multiThreadLevel) : inputVec(inputVec),
       outputVec(outputVec), client(client), map(),
-       intermediateVecs(), barrier(multiThreadLevel), _size( inputVec.size()),
+       intermediateVecs(), barrier(multiThreadLevel),hold_lock_thread(-1) ,_size( inputVec.size()),
         mutex(PTHREAD_MUTEX_INITIALIZER), mt_level(multiThreadLevel) {
 
         // absolute position
@@ -45,7 +48,7 @@ class GlobalEnv {
     }
     ~GlobalEnv(){
         for ( int i = 0 ; i < mt_level; i++ ) {
-            free(threads[i]);
+            free(threads[i]); //TODO!11111111
             // should i terminate threads??
         }
         free(threads);
@@ -58,6 +61,7 @@ class GlobalEnv {
     stage_t stage = UNDEFINED_STAGE; 
     
     pthread_t ** threads;
+    std::atomic<int> hold_lock_thread;
     pthread_mutex_t mutex;
     int mt_level;
 
@@ -71,12 +75,14 @@ class GlobalEnv {
         }
     };
 
-    std::map<K2* , IntermediateVec*, cmpK2> map; 
-    
-    float _size;
+    std::map<K2* , IntermediateVec*, cmpK2> map;
+
+    std::atomic<float> _size;
     
     void inline lock()
     {
+
+        hold_lock_thread = pthread_self();
         log("")
         if (pthread_mutex_lock(&mutex) != 0){
 		    fprintf(stderr, "[[Barrier]] error on pthread_mutex_lock");
@@ -86,6 +92,7 @@ class GlobalEnv {
 
     void inline unlock()
     {
+        hold_lock_thread = -1;
         log("")
         if (pthread_mutex_unlock(&mutex) != 0) {
 		    fprintf(stderr, "[[Barrier]] error on pthread_mutex_unlock");
@@ -95,6 +102,7 @@ class GlobalEnv {
 
     IntermediateVec * mappop( ) {
         lock();
+        log("in lock")
         IntermediateVec * ret = this->map.begin()->second;
         this->map.erase(this->map.begin());
         unlock();
@@ -115,7 +123,9 @@ class GlobalEnv {
     }
 
     void emit3 (K3* key, V3* value) {
+        log("before lock")
         lock();
+        log("after lock")
         this->outputVec.push_back( OutputPair( key, value ) );
         log("");
         unlock();
@@ -131,6 +141,7 @@ pthread_mutex_t mutex;
 void shuffle()
 {
     log("");
+
     globalEnv->_size = globalEnv->map.size();
 }
 
@@ -152,17 +163,22 @@ void * map_reduce_call (void * context)
         _globalEnv->lock();
     }
     _globalEnv->unlock();
-    
+
     _globalEnv->barrier.barrier();
     _globalEnv->stage=SHUFFLE_STAGE;
     shuffle();
+
     _globalEnv->stage=REDUCE_STAGE;
     _globalEnv->barrier.barrier();
-    
     _globalEnv->lock();
+
     while ( _globalEnv->map.size() > 0 ){
         _globalEnv->unlock();
-        _globalEnv->client.reduce(_globalEnv->mappop(), context);        
+        auto topop = _globalEnv->mappop();
+        log(  " before reduce  "  )
+        _globalEnv->client.reduce(topop, context);
+        std::cout << _globalEnv << "\n";
+        log(  " after reduce "  )
         _globalEnv->lock();
     }
     _globalEnv->unlock();
@@ -177,12 +193,36 @@ JobHandle startMapReduceJob(const MapReduceClient& client,
 }
 
 
+//void ** freethread( )
+//{
+//    log("")
+//    if (pthread_mutex_unlock(&mutex) != 0) {
+//        fprintf(stderr, "[[Barrier]] error on pthread_mutex_unlock");
+//        log("pthread_mutex_unlock")
+//    }
+//}
+
 void waitForJob(JobHandle job) {
     GlobalEnv * _globalEnv = (GlobalEnv *) job;
+    log("")
+    _globalEnv->lock();
+
     for(int i = 0 ; i < _globalEnv->mt_level; i++)
     {
-        pthread_join(  *_globalEnv->threads[i] , NULL );
+        if(_globalEnv->threads[i] != NULL){
+            log("")
+            std::cout << "joined" << i << "\n";
+//
+//            if ( pthread_equal( _globalEnv->hold_lock_thread , *_globalEnv->threads[i] )) {
+//                pthread_mutex_unlock(&_globalEnv->mutex) != 0)
+//            }
+            pthread_join(  *_globalEnv->threads[i] , NULL );
+            std::cout << "after joined" << i << "\n";
+//            free(_globalEnv->threads[i]);
+//            _globalEnv->threads[i] = NULL;
+        }
     }
+    _globalEnv->unlock();
     // chaya: I need to think about this with you
 }
 void getJobState(JobHandle job, JobState* state) {
@@ -213,9 +253,13 @@ void getJobState(JobHandle job, JobState* state) {
     ((GlobalEnv *) job)->unlock();
 }
 void closeJobHandle(JobHandle job) {
+    log("before wait ")
     waitForJob(job);
     GlobalEnv * _globalEnv = (GlobalEnv *) job;
+    std::cout << _globalEnv <<" after wait "<< "\n";
+
     delete _globalEnv;
+    std::cout << " finish" <<  _globalEnv << "\n";
 }
 
 
