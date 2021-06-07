@@ -16,7 +16,7 @@
 #define log(str)\
     std::cout << "[" << __FUNCTION__ <<  "]" << "-";\
     std::cout << str << "\n";
-#else
+#else // chaya: what?
     
 #endif
 
@@ -31,33 +31,41 @@ class GlobalEnv {
      const MapReduceClient& client, int multiThreadLevel) : inputVec(inputVec),
       outputVec(outputVec), client(client), map(),
        intermediateVecs(), barrier(multiThreadLevel), _size( inputVec.size()),
-        mutex(PTHREAD_MUTEX_INITIALIZER) { 
+        mutex(PTHREAD_MUTEX_INITIALIZER), mt_level(multiThreadLevel) {
 
-        // absoulte position 
+        // absolute position
         threads = (pthread_t **) malloc( sizeof(pthread_t *) * multiThreadLevel ); 
 
-        // allocate memmory on the heap.
+        // allocate memory on the heap.
         for ( int i = 0 ; i < multiThreadLevel; i++ ) {
             threads[i] = (pthread_t *) malloc( sizeof(pthread_t )); 
         }
 
         for ( int i = 0 ; i < multiThreadLevel; i++ ) {
-            threads[i] = (pthread_t *) malloc( sizeof(pthread_t )); 
+            threads[i] = (pthread_t *) malloc( sizeof(pthread_t ));  // chaya : why allocate twice???
             pthread_create( threads[i], NULL, &map_reduce_call, this );
         }
 
+    }
+    ~GlobalEnv(){
+        for ( int i = 0 ; i < mt_level; i++ ) {
+            free(threads[i]);
+            // should i terminate threads??
+        }
+        free(threads);
     }
     
     InputVec inputVec;
     OutputVec& outputVec;
     const MapReduceClient& client;
     Barrier barrier; 
-    stage_t stage = UNDEFINED_STAGE;
+    stage_t stage = UNDEFINED_STAGE; // chaya : why undefined stage? if you change it to MAP a second later?
     
     pthread_t ** threads;
     pthread_mutex_t mutex;
+    int mt_level;
 
-    // absoulte memmory.
+    // absolute memory.
     std::vector<IntermediateVec*> intermediateVecs; 
     
     // points on items in intermediateVecs.
@@ -90,7 +98,6 @@ class GlobalEnv {
     }
 
     IntermediateVec * mappop( ) {
-
         lock();
         IntermediateVec * ret = this->map.begin()->second;
         this->map.erase(this->map.begin());
@@ -145,13 +152,12 @@ void * map_reduce_call (void * context)
         InputPair pair = _globalEnv->inputVec.back();
         _globalEnv->inputVec.pop_back();
         _globalEnv->unlock();
-        
         _globalEnv->client.map(pair.first, pair.second, context);
         _globalEnv->lock();
     }
     _globalEnv->unlock();
     
-    _globalEnv->barrier.barrier();    
+    _globalEnv->barrier.barrier();
     _globalEnv->stage=SHUFFLE_STAGE;
     shuffle();
     _globalEnv->stage=REDUCE_STAGE;
@@ -171,15 +177,13 @@ JobHandle startMapReduceJob(const MapReduceClient& client,
 	const InputVec& inputVec, OutputVec& outputVec,
 	int multiThreadLevel) {    
     globalEnv = new GlobalEnv (inputVec, outputVec, client, multiThreadLevel);
-    
-    
-
     return (void *) globalEnv;
 }
 
 
 void waitForJob(JobHandle job) {
-
+    GlobalEnv * _globalEnv = (GlobalEnv *) context;
+    // chaya: I need to think about this with you
 }
 void getJobState(JobHandle job, JobState* state) {
 
@@ -208,8 +212,10 @@ void getJobState(JobHandle job, JobState* state) {
     state->stage = ((GlobalEnv *) job)->stage;
     ((GlobalEnv *) job)->unlock();
 }
-void closeJobHandle(JobHandle job) { 
- 
+void closeJobHandle(JobHandle job) {
+    waitForJob(job);
+    GlobalEnv _globalEnv = (GlobalEnv *) context;
+    delete _globalEnv;
 }
 
 
