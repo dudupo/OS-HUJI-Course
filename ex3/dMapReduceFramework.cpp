@@ -38,10 +38,6 @@ class GlobalEnv {
 
         // allocate memory on the heap.
         for ( int i = 0 ; i < multiThreadLevel; i++ ) {
-            threads[i] = (pthread_t *) malloc( sizeof(pthread_t )); 
-        }
-
-        for ( int i = 0 ; i < multiThreadLevel; i++ ) {
             threads[i] = (pthread_t *) malloc( sizeof(pthread_t ));  // chaya : why allocate twice???
             pthread_create( threads[i], NULL, &map_reduce_call, this );
         }
@@ -59,7 +55,7 @@ class GlobalEnv {
     OutputVec& outputVec;
     const MapReduceClient& client;
     Barrier barrier; 
-    stage_t stage = UNDEFINED_STAGE; // chaya : why undefined stage? if you change it to MAP a second later?
+    stage_t stage = UNDEFINED_STAGE; 
     
     pthread_t ** threads;
     pthread_mutex_t mutex;
@@ -182,7 +178,11 @@ JobHandle startMapReduceJob(const MapReduceClient& client,
 
 
 void waitForJob(JobHandle job) {
-    GlobalEnv * _globalEnv = (GlobalEnv *) context;
+    GlobalEnv * _globalEnv = (GlobalEnv *) job;
+    for(int i = 0 ; i < _globalEnv->mt_level; i++)
+    {
+        pthread_join(  *_globalEnv->threads[i] , NULL );
+    }
     // chaya: I need to think about this with you
 }
 void getJobState(JobHandle job, JobState* state) {
@@ -214,7 +214,7 @@ void getJobState(JobHandle job, JobState* state) {
 }
 void closeJobHandle(JobHandle job) {
     waitForJob(job);
-    GlobalEnv _globalEnv = (GlobalEnv *) context;
+    GlobalEnv * _globalEnv = (GlobalEnv *) job;
     delete _globalEnv;
 }
 
