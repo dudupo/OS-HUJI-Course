@@ -22,7 +22,14 @@
 #else
     
 #endif
-
+class GlobalEnv;
+class Context {
+public:
+    Context(int id, GlobalEnv* env ): threadID(id), env(env){}
+    int threadID;
+    GlobalEnv* env;
+    IntermediateVec interVec;
+};
 
 void * map_reduce_call (void * context);
 
@@ -32,41 +39,51 @@ class GlobalEnv {
     public :
     GlobalEnv(const InputVec& inputVec, OutputVec& outputVec,
      const MapReduceClient& client, int multiThreadLevel) : inputVec(inputVec),
-      outputVec(outputVec), client(client), map(),
-       intermediateVecs(), barrier(multiThreadLevel),hold_lock_thread(-1) ,_size( inputVec.size()),
+      outputVec(outputVec), client(client), map(), barrier(multiThreadLevel) ,hold_lock_thread(-1) ,_size( inputVec.size()),
         mutex(PTHREAD_MUTEX_INITIALIZER), mt_level(multiThreadLevel) {
+//        intermediateVecs = new std::vector<IntermediateVec*>[mt_level];
 
         // absolute position
-        threads = (pthread_t **) malloc( sizeof(pthread_t *) * multiThreadLevel ); 
+        threads = new pthread_t*[multiThreadLevel];
+        contexts = new Context*[multiThreadLevel];
 
         // allocate memory on the heap.
         for ( int i = 0 ; i < multiThreadLevel; i++ ) {
-            threads[i] = (pthread_t *) malloc( sizeof(pthread_t ));  // chaya : why allocate twice???
-            pthread_create( threads[i], NULL, &map_reduce_call, this );
+            threads[i] = new pthread_t;
+            contexts[i] = new Context(i, this);
+            pthread_create( threads[i], nullptr, &map_reduce_call, contexts[i]);
         }
 
+        alive = new std::atomic<bool>[ multiThreadLevel ];
+        for ( int i =0 ; i < multiThreadLevel; i++)
+            alive[i] = true;
     }
     ~GlobalEnv(){
         for ( int i = 0 ; i < mt_level; i++ ) {
-            free(threads[i]); //TODO!11111111
+            delete threads[i]; //TODO!11111111
+            delete contexts[i];
             // should i terminate threads??
-        }
-        free(threads);
+        }// TODO delete map
+        delete threads;
+        delete contexts;
     }
     
     InputVec inputVec;
     OutputVec& outputVec;
     const MapReduceClient& client;
-    Barrier barrier; 
-    stage_t stage = UNDEFINED_STAGE; 
+    Barrier barrier;
+
+    stage_t stage = UNDEFINED_STAGE;
+    Context** contexts;
     
     pthread_t ** threads;
     std::atomic<int> hold_lock_thread;
     pthread_mutex_t mutex;
     int mt_level;
 
+    std::atomic<bool> * alive;
     // absolute memory.
-    std::vector<IntermediateVec*> intermediateVecs; 
+//    std::vector<IntermediateVec*> intermediateVecs;
     
     // points on items in intermediateVecs.
     struct cmpK2 {
@@ -82,8 +99,8 @@ class GlobalEnv {
     void inline lock()
     {
 
-        hold_lock_thread = pthread_self();
-        log("")
+
+//        log("")
         if (pthread_mutex_lock(&mutex) != 0){
 		    fprintf(stderr, "[[Barrier]] error on pthread_mutex_lock");
 		    exit(1);
@@ -92,8 +109,8 @@ class GlobalEnv {
 
     void inline unlock()
     {
-        hold_lock_thread = -1;
-        log("")
+
+//        log("")
         if (pthread_mutex_unlock(&mutex) != 0) {
 		    fprintf(stderr, "[[Barrier]] error on pthread_mutex_unlock");
 		    exit(1);
@@ -101,60 +118,62 @@ class GlobalEnv {
     }
 
     IntermediateVec * mappop( ) {
-        lock();
-        log("in lock")
         IntermediateVec * ret = this->map.begin()->second;
         this->map.erase(this->map.begin());
-        unlock();
         return ret;
     }
 
-    void emit2 (K2* key, V2* value) {
-        lock();
-        if ( this->map.find(key) == this->map.end() )
-        { 
-            this->intermediateVecs.push_back( new IntermediateVec() );
-            this->map[key] = this->intermediateVecs.back();
-        }
-        this->map[key]->push_back( IntermediatePair( key, value));
-        
-        log("");
-        unlock();
-    }
+//    void emit2 (K2* key, V2* value) {
+//        lock();
+//        if ( this->map.find(key) == this->map.end() )
+//        {
+//            this->intermediateVecs.push_back( new IntermediateVec() );
+//            this->map[key] = this->intermediateVecs.back();
+//        }
+//        this->map[key]->push_back( IntermediatePair( key, value));
+//
+//        log("");
+//        unlock();
+//    }
 
     void emit3 (K3* key, V3* value) {
-        log("before lock")
-        lock();
-        log("after lock")
         this->outputVec.push_back( OutputPair( key, value ) );
-        log("");
-        unlock();
     }
 
 };
 
-GlobalEnv * globalEnv; 
-pthread_mutex_t mutex;
 
 
 // should executed only once.
-void shuffle()
+void shuffle(GlobalEnv* _globalEnv)
 {
     log("");
 
-    globalEnv->_size = globalEnv->map.size();
+    for(int i = 0 ; i < _globalEnv->mt_level ; i++){
+        IntermediateVec vec = _globalEnv->contexts[i]->interVec;
+        for (auto pair : vec){
+            if ( _globalEnv->map.find(pair.first) == _globalEnv->map.end()){
+                _globalEnv->map[pair.first] = new IntermediateVec();
+            }
+            _globalEnv->map[pair.first]->push_back(pair);
+        }
+    }
+    _globalEnv->_size = _globalEnv->map.size();
+
 }
 
 
 void * map_reduce_call (void * context)
 {
-    
-    GlobalEnv * _globalEnv = (GlobalEnv *) context;
+
+
+    auto* threadContext = (Context*) context;
+    GlobalEnv* _globalEnv= threadContext->env;
+
     _globalEnv->stage=MAP_STAGE;
     _globalEnv->lock();
-
     // while there are still missions in the queue. 
-    while ( _globalEnv->inputVec.size() > 0 ){
+    while ( !_globalEnv->inputVec.empty()){
         // pop one and execute it.
         InputPair pair = _globalEnv->inputVec.back();
         _globalEnv->inputVec.pop_back();
@@ -166,30 +185,28 @@ void * map_reduce_call (void * context)
 
     _globalEnv->barrier.barrier();
     _globalEnv->stage=SHUFFLE_STAGE;
-    shuffle();
-
-    _globalEnv->stage=REDUCE_STAGE;
+    if(threadContext->threadID == 0){
+        shuffle(_globalEnv);
+    }
     _globalEnv->barrier.barrier();
+    _globalEnv->stage=REDUCE_STAGE;
     _globalEnv->lock();
-
-    while ( _globalEnv->map.size() > 0 ){
+    while ( !_globalEnv->map.empty()){
+        IntermediateVec * topop = _globalEnv->map.begin()->second;
+        _globalEnv->map.erase(_globalEnv->map.begin());
         _globalEnv->unlock();
-        auto topop = _globalEnv->mappop();
-        log(  " before reduce  "  )
         _globalEnv->client.reduce(topop, context);
-        std::cout << _globalEnv << "\n";
-        log(  " after reduce "  )
         _globalEnv->lock();
     }
     _globalEnv->unlock();
+    return context;
 }
 
 
 JobHandle startMapReduceJob(const MapReduceClient& client,
 	const InputVec& inputVec, OutputVec& outputVec,
 	int multiThreadLevel) {    
-    globalEnv = new GlobalEnv (inputVec, outputVec, client, multiThreadLevel);
-    return (void *) globalEnv;
+    return new GlobalEnv (inputVec, outputVec, client, multiThreadLevel);
 }
 
 
@@ -203,27 +220,18 @@ JobHandle startMapReduceJob(const MapReduceClient& client,
 //}
 
 void waitForJob(JobHandle job) {
-    GlobalEnv * _globalEnv = (GlobalEnv *) job;
+    auto * _globalEnv = (GlobalEnv *) job;
     log("")
-    _globalEnv->lock();
-
-    for(int i = 0 ; i < _globalEnv->mt_level; i++)
-    {
-        if(_globalEnv->threads[i] != NULL){
-            log("")
-            std::cout << "joined" << i << "\n";
-//
-//            if ( pthread_equal( _globalEnv->hold_lock_thread , *_globalEnv->threads[i] )) {
-//                pthread_mutex_unlock(&_globalEnv->mutex) != 0)
-//            }
-            pthread_join(  *_globalEnv->threads[i] , NULL );
-            std::cout << "after joined" << i << "\n";
-//            free(_globalEnv->threads[i]);
-//            _globalEnv->threads[i] = NULL;
-        }
+    for(int i = 0 ; i < _globalEnv->mt_level; i++) {
+        std::cout << "joining the " << i << "th thread" << std::endl;
+        pthread_tryjoin_np(*_globalEnv->threads[i], NULL);
+//        _globalEnv->alive[i] = false;
+//        if (_globalEnv->alive[i]) {
+//        }
     }
-    _globalEnv->unlock();
-    // chaya: I need to think about this with you
+
+    log("Done Wait")
+
 }
 void getJobState(JobHandle job, JobState* state) {
 
@@ -253,19 +261,19 @@ void getJobState(JobHandle job, JobState* state) {
     ((GlobalEnv *) job)->unlock();
 }
 void closeJobHandle(JobHandle job) {
-    log("before wait ")
     waitForJob(job);
-    GlobalEnv * _globalEnv = (GlobalEnv *) job;
-    std::cout << _globalEnv <<" after wait "<< "\n";
+    auto * _globalEnv = (GlobalEnv *) job;
 
-    delete _globalEnv;
-    std::cout << " finish" <<  _globalEnv << "\n";
+
+    //    delete _globalEnv;
 }
 
 
 void emit2 (K2* key, V2* value, void* context) {
-    ((GlobalEnv *) context)->emit2( key, value );
+    auto* cont = (Context*) context;
+    cont->interVec.push_back(IntermediatePair( key, value));
 }
 void emit3 (K3* key, V3* value, void* context) {
-    ((GlobalEnv *) context)->emit3(key, value);
+    auto* cont = (Context*) context;
+    cont->env->emit3(key, value);
 }
