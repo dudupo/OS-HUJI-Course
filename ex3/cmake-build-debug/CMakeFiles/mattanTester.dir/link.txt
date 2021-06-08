@@ -1,0 +1,1 @@
+/usr/bin/c++  -g  -rdynamic CMakeFiles/mattanTester.dir/SampleClient.cpp.o CMakeFiles/mattanTester.dir/MapReduceFramework.cpp.o CMakeFiles/mattanTester.dir/Barrier/Barrier.cpp.o  -o mattanTester  lib/libgtest_maind.a lib/libgtestd.a -lpthread 

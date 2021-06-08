@@ -1,0 +1,44 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/cs/usr/davidponar/OS-HUJI-Course/ex3/Barrier/Barrier.h
+pthread.h
+-
+
+/cs/usr/davidponar/OS-HUJI-Course/ex3/MapReduceClient.h
+vector
+-
+utility
+-
+
+/cs/usr/davidponar/OS-HUJI-Course/ex3/MapReduceFramework.cpp
+MapReduceFramework.h
+/cs/usr/davidponar/OS-HUJI-Course/ex3/MapReduceFramework.h
+pthread.h
+-
+list
+-
+map
+-
+stdlib.h
+-
+functional
+-
+./Barrier/Barrier.h
+/cs/usr/davidponar/OS-HUJI-Course/ex3/Barrier/Barrier.h
+string
+-
+iostream
+-
+atomic
+-
+
+/cs/usr/davidponar/OS-HUJI-Course/ex3/MapReduceFramework.h
+MapReduceClient.h
+/cs/usr/davidponar/OS-HUJI-Course/ex3/MapReduceClient.h
+
