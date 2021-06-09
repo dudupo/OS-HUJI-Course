@@ -94,10 +94,8 @@ class GlobalEnv {
     }
 
     IntermediateVec * mappop( ) {
-        lock();
         IntermediateVec * ret = this->map.begin()->second;
         this->map.erase(this->map.begin());
-        unlock();
         return ret;
     }
 
@@ -161,8 +159,9 @@ void * map_reduce_call (void * context)
     
     _globalEnv->lock();
     while ( _globalEnv->map.size() > 0 ){
+        auto entity = _globalEnv->mappop();
         _globalEnv->unlock();
-        _globalEnv->client.reduce(_globalEnv->mappop(), context);        
+        _globalEnv->client.reduce(entity, context);        
         _globalEnv->lock();
     }
     _globalEnv->unlock();
@@ -184,6 +183,7 @@ void waitForJob(JobHandle job) {
         pthread_join(  *_globalEnv->threads[i] , NULL );
     }
     // chaya: I need to think about this with you
+    log("")
 }
 void getJobState(JobHandle job, JobState* state) {
 
@@ -214,8 +214,8 @@ void getJobState(JobHandle job, JobState* state) {
 }
 void closeJobHandle(JobHandle job) {
     waitForJob(job);
-    GlobalEnv * _globalEnv = (GlobalEnv *) job;
-    delete _globalEnv;
+    // GlobalEnv * _globalEnv = (GlobalEnv *) job;
+    // delete _globalEnv;
 }
 
 
