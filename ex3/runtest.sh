@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+./mattanTester --gtest_filter=MattanTests.waitAndCloseTest
+#./mattanTester --gtest_filter=MattanTests.errorMessageTest
+./mattanTester --gtest_filter=MattanTests.outputTest
+./mattanTester --gtest_filter=MattanTests.outputTestFromTwoDiffrentThreads
+./mattanTester --gtest_filter=MattanTests.outputTestWaitFromTwoThreads
+./mattanTester --gtest_filter=MattanTests.outputTest3Clients
+./mattanTester --gtest_filter=MattanTests.outputTestOneThreadOnly
+./mattanTester --gtest_filter=MattanTests.progressTest
+./mattanTester --gtest_filter=MattanTests.deadlockTest
+./mattanTester --gtest_filter=MattanTests.randomTest
