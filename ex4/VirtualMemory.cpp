@@ -33,11 +33,7 @@ uint64_t NewFrame();
     // next frame in the order
     //
 
-physical_addr& getPAddr(uint64_t frameIndex){
-    uint64_t frame = 0;
-    for(int i = 0 ; i < TABLES_DEPTH ; ++i)
-
-}
+physical_addr& getPAddr(uint64_t frameIndex){}
 
 
 void clearTable(uint64_t frameIndex) {
