@@ -3,6 +3,18 @@
 
 
 typdef uint64_t physical_addr;
+typdef uint64_t temp_type;
+typedef struct VirtualMem{
+    temp_type offset;
+    temp_type page;
+
+}VirtualMem;
+
+
+void parseVAddr(uint64_t& virtualAddress,VirtualMem& VMem ){
+    VMem.offset = virtualAddress & (PAGE_SIZE-1);
+    VMem.page =  virtualAddress >> PAGE_SIZE;
+}
 
 int toDec(uint64_t index){
     int dec_value = 0;
@@ -28,12 +40,14 @@ bool tableIsClear(){
     return true;
 }
 
-uint64_t NewFrame();
-    // look in tree for 0 frames (and remove ref from father
-    // next frame in the order
-    //
+temp_type NewFrame();
 
-physical_addr& getPAddr(uint64_t frameIndex){}
+
+physical_addr& getPAddr(temp_type page){
+
+
+
+}
 
 
 void clearTable(uint64_t frameIndex) {
@@ -56,9 +70,11 @@ int VMread(uint64_t virtualAddress, word_t* value) {
 
 
 int VMwrite(uint64_t virtualAddress, word_t value) {
-    physical_addr addr = getPAddr(virtualAddress);
+    VirtualMem mem;
+    parseVAddr(VMem, mem);
+    physical_addr addr = getPAddr(mem.page);
     if(addr == 0){return 0;}
-    PMwrite(addr, value);
+    PMwrite(addr * PAGE_SIZE+mem.offset, value);
     return 1;
 }
 
