@@ -2,20 +2,21 @@ CC=g++
 CXX=g++
 RANLIB=ranlib
 
-LIBSRC=MapReduceFramework.cpp Barrier.cpp
+LIBSRC=PhysicalMemory.cpp VirtualMemory.cpp
 LIBOBJ=$(LIBSRC:.cpp=.o)
+LIBHEAD=$(LIBSRC:.cpp=.h)
 
 INCS=-I.
 CFLAGS = -Wall -std=c++11 -fpermissive  -g $(INCS) 
 CXXFLAGS = -Wall -std=c++11 -fpermissive  -g $(INCS) 
 
-OSMLIB = libMapReduceFramework.a
+OSMLIB = libMemmory.a
 TARGETS = $(OSMLIB)
 
 TAR=tar
 TARFLAGS=-cvf
-TARNAME=ex5.tar
-TARSRCS=$(LIBSRC) Makefile README Barrier.h
+TARNAME=ex4.tar
+TARSRCS=$(LIBSRC) Makefile README  $(LIBHEAD) MemoryConstants
 
 all: $(TARGETS)
 

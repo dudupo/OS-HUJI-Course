@@ -1,0 +1,1 @@
+g++ SimpleTest.cpp -L. -l:libMemmory.a  -o test  --std=c++11
