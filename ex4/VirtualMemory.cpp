@@ -71,57 +71,65 @@ struct AddressState {
 
 struct AddressState search(uint64_t virtualAddress) {
     struct AddressState ret = { 0, 0};
-    for ( int i = 0 ; i < TABLES_DEPTH  ; i++ ) {
+    for ( int i = 0 ; i < TABLES_DEPTH ; i++ ) {
 
-        printf( "[DEBUG] depth %d, PAGE_SIZE : %d \n", i, PAGE_SIZE);
+        // printf( "[DEBUG] depth %d, PAGE_SIZE : %d , TABLES_DEPTH : %d \n", i, PAGE_SIZE, TABLES_DEPTH);
+        // printf( "[DEBUG] val.addr : %d, val.nextaddr  : %d \n", ret.addr, ret.nextaddr);
 
         PMread(
             convert( virtualAddress, ret.addr),
-             (word_t *) &ret.nextaddr);
+             (word_t *) &(ret.nextaddr));
 
         if ( ret.nextaddr == 0 )
+        {
+            ret.nextaddr = -1;
             return ret;            
-        
+        }
 
-        virtualAddress >>= PAGE_SIZE;
+        virtualAddress /= PAGE_SIZE;
+
+        ret.addr = ret.nextaddr;
     }
+    // printf( "[DEBUG] val.addr : %d, val.nextaddr  : %d \n", ret.addr, ret.nextaddr);
     return ret;
 }
 
 uint64_t inline max( uint64_t a , uint64_t b) {
-    return a ? a > b : b; 
+    return a > b ? a : b; 
 }
 
 uint64_t getmax_frame_index_DFS( uint64_t depth, physical_addr current_addr ) {
-    uint64_t _max_frame  = 0; 
+    uint64_t _max_frame  = 1; 
     log()
     
-    if ( depth < TABLES_DEPTH ) {
+    if ( depth < TABLES_DEPTH) {
         physical_addr temp_addr = 0;
         for ( uint64_t i = 0 ; i < PAGE_SIZE; ++i ) {
             PMread( current_addr* PAGE_SIZE + i, (word_t *) &temp_addr);
             if ( temp_addr != 0 ) {
-                _max_frame = max( getmax_frame_index_DFS( depth+1, temp_addr ) , _max_frame );                
+                _max_frame += getmax_frame_index_DFS( depth+1, temp_addr );                 
             }
         }
     }
+    printf( "[DEBUG] frame : %d, \n", _max_frame );
     return _max_frame;
 }
 
 
 int NewNode ( physical_addr addr, uint64_t frame ) {
     log()
+    printf( "[DEBUG] addr %d, frame : %d, \n", addr, frame );
     PMwrite( addr, frame);
     
     return 1;
 }
 
 struct AddressState  getPAddr(uint64_t virtualAddress){
-    struct AddressState val = {0, 0};
     log()
     uint64_t max_frame_index = getmax_frame_index_DFS(0, 0 ); 
     log()
-    for  ( ; val.nextaddr  == 0 ; val =  search(virtualAddress) )  {
+    struct AddressState val = search(virtualAddress);
+    for  ( ; val.nextaddr  == -1 ; val =  search(virtualAddress) )  {
         
         // should create new node.
         if ( max_frame_index < NUM_FRAMES ) {
@@ -141,6 +149,7 @@ struct AddressState  getPAddr(uint64_t virtualAddress){
 int VMread(uint64_t virtualAddress, word_t* value) {
     struct AddressState val = getPAddr( virtualAddress );
 
+    printf("[DEBUG] VMread addr:  %d,\n", val.addr);
     // last step 
     PMread (
          convert( 0, val.addr),

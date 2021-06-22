@@ -1,0 +1,36 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/MemoryConstants.h
+climits
+-
+stdint.h
+-
+
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/PhysicalMemory.h
+MemoryConstants.h
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/MemoryConstants.h
+random
+-
+memory
+-
+sstream
+-
+
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/VirtualMemory.cpp
+VirtualMemory.h
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/VirtualMemory.h
+PhysicalMemory.h
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/PhysicalMemory.h
+cstdio
+-
+
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/VirtualMemory.h
+MemoryConstants.h
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/MemoryConstants.h
+

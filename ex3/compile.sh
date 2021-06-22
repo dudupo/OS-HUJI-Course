@@ -1,1 +1,1 @@
-g++ -pthread  dMapReduceFramework.cpp  SampleClientTest.cpp Barrier/Barrier.cpp  cMapReduceFramework.cpp -o ptest  --std=c++11
+g++ -pthread  dMapReduceFramework.cpp  Tests.cpp Barrier/Barrier.cpp  cMapReduceFramework.cpp -o ptest  --std=c++11

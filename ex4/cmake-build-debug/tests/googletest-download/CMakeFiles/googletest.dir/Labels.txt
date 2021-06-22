@@ -1,0 +1,14 @@
+# Target labels
+ googletest
+# Source files and their labels
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/cmake-build-debug/tests/googletest-download/CMakeFiles/googletest
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/cmake-build-debug/tests/googletest-download/CMakeFiles/googletest.rule
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/cmake-build-debug/tests/googletest-download/CMakeFiles/googletest-complete.rule
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/cmake-build-debug/tests/googletest-download/googletest-prefix/src/googletest-stamp/googletest-install.rule
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/cmake-build-debug/tests/googletest-download/googletest-prefix/src/googletest-stamp/googletest-mkdir.rule
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/cmake-build-debug/tests/googletest-download/googletest-prefix/src/googletest-stamp/googletest-download.rule
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/cmake-build-debug/tests/googletest-download/googletest-prefix/src/googletest-stamp/googletest-update.rule
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/cmake-build-debug/tests/googletest-download/googletest-prefix/src/googletest-stamp/googletest-patch.rule
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/cmake-build-debug/tests/googletest-download/googletest-prefix/src/googletest-stamp/googletest-configure.rule
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/cmake-build-debug/tests/googletest-download/googletest-prefix/src/googletest-stamp/googletest-build.rule
+/home/davidponar/workspace/HUJI/OS-HUJI-Course/ex4/cmake-build-debug/tests/googletest-download/googletest-prefix/src/googletest-stamp/googletest-test.rule
