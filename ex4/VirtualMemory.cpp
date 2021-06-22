@@ -55,10 +55,14 @@ void VMinitialize() {
     //clearTable(0);
 }
 
-inline physical_addr convert(uint64_t virtualAddress, physical_addr addr )
+physical_addr convert(uint64_t virtualAddress, physical_addr addr )
 {
-    temp_type offset    = virtualAddress & (PAGE_SIZE-1);
+    temp_type offset    = virtualAddress % PAGE_SIZE ;
     temp_type page      = virtualAddress >> PAGE_SIZE;
+    log()
+    printf("%d \n", addr);
+    printf("%d \n", offset);
+    printf("%d \n", addr * PAGE_SIZE + offset);
     return addr * PAGE_SIZE + offset;
 } 
 
@@ -71,17 +75,24 @@ struct AddressState {
 
 struct AddressState search(uint64_t virtualAddress) {
     struct AddressState ret = { 0, 0};
-    for ( int i = 0 ; i < TABLES_DEPTH ; i++ ) {
+    word_t qal = 0;
+    for ( int i = 0 ; i < TABLES_DEPTH; i++ ) {
 
         // printf( "[DEBUG] depth %d, PAGE_SIZE : %d , TABLES_DEPTH : %d \n", i, PAGE_SIZE, TABLES_DEPTH);
         // printf( "[DEBUG] val.addr : %d, val.nextaddr  : %d \n", ret.addr, ret.nextaddr);
 
         PMread(
             convert( virtualAddress, ret.addr),
-             (word_t *) &(ret.nextaddr));
+             &qal );
+        
+        ret.nextaddr= qal;    
+        if ( ret.nextaddr == 0 ) {
+            log()
 
-        if ( ret.nextaddr == 0 )
-        {
+            // pathch, should remove.
+            ret.addr = convert( virtualAddress, ret.addr);
+            printf("%d \n", ret.addr);
+
             ret.nextaddr = -1;
             return ret;            
         }
@@ -134,9 +145,8 @@ struct AddressState  getPAddr(uint64_t virtualAddress){
         // should create new node.
         if ( max_frame_index < NUM_FRAMES ) {
             NewNode( val.addr, max_frame_index );
-            max_frame_index++;
+            max_frame_index++;   
         }
-        
         // evicate by weight.  
         else {
             
