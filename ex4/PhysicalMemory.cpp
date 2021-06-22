@@ -14,6 +14,7 @@ void initialize() {
 }
 
 void PMread(uint64_t physicalAddress, word_t* value) {
+    printf("[DEBUG] %s\n", __FUNCTION__);
     if (RAM.empty())
         initialize();
 
