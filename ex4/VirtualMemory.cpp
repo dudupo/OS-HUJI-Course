@@ -85,20 +85,20 @@ struct AddressState search(uint64_t virtualAddress) {
 
         // printf( "[DEBUG] depth %d, PAGE_SIZE : %d , TABLES_DEPTH : %d \n", i, PAGE_SIZE, TABLES_DEPTH);
         // printf( "[DEBUG] val.addr : %d, val.nextaddr  : %d \n", ret.addr, ret.nextaddr);
-
-        PMread(convert( virtualAddress, ret.addr), &qal );
+        temp_add = (virtualAddress >> (OFFSET_WIDTH * (TABLES_DEPTH - i - 1)));
+        PMread(convert(temp_add,ret.addr), &qal );
 
         ret.nextaddr= qal;
         if ( ret.nextaddr == 0 ) {
             log()
             // pathch, should remove.
-            ret.addr = convert( virtualAddress, ret.addr);
+            ret.addr = convert( temp_add, ret.addr);
             printf("%d \n", ret.addr);
             ret.nextaddr = -1;
             return ret;
         }
+//        virtualAddress /= PAGE_SIZE;
 
-        virtualAddress /= PAGE_SIZE;
 
         ret.addr = ret.nextaddr;
     }
