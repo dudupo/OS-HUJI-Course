@@ -109,49 +109,31 @@ struct AddressState search(uint64_t virtualAddress) {
 
 #define BFS
 #ifdef BFS
-
+#include <fstream>
 #include <vector>
 #include <utility>
 #include <iostream>
-void print_BFS(uint64_t  lastdepth, std::vector< std::pair<uint64_t,  physical_addr>> queue ) {
+void print_BFS(std::vector< std::pair<physical_addr,  physical_addr>> queue, std::ofstream & _file ) {
 
     if (queue.empty())
         return;
 
     auto ppair = queue.front();
     queue.erase( queue.begin() );
-    if ( ppair.first >= TABLES_DEPTH )
-        return;
-
-    if ( lastdepth != ppair.first){
-        std::cout << "\n";
-        lastdepth = ppair.first;
+    _file << ppair.first << " " <<  ppair.second << "\n";
+    word_t temp_addr = 0;
+    
+    for (uint64_t i = 0; i < PAGE_SIZE ; ++i) {
+         
+	 if ( (ppair.second * PAGE_SIZE + i) < RAM_SIZE ){
+         	PMread(ppair.second * PAGE_SIZE + i, &temp_addr);
+	 	if (temp_addr != 0) {
+            		queue.push_back(std::pair<physical_addr, physical_addr>( ppair.second * PAGE_SIZE + i, temp_addr));
+         	}
+	 }
+         
     }
-    if ( ppair.second == -1)
-        std::cout << "<-> ";
-    else
-    {
-        std::cout << ppair.second << " ";
-    }
-    if ( ppair.second == -1 && ppair.first < TABLES_DEPTH ) {
-//        for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
-//            queue.push_back(std::pair<uint64_t , physical_addr>( ppair.first + 1, -1 ));
-//        }
-    }
-    else {
-        word_t temp_addr = 0;
-        for (uint64_t i = 0; i < PAGE_SIZE && ppair.first < TABLES_DEPTH; ++i) {
-            PMread(ppair.second * PAGE_SIZE + i, &temp_addr);
-            if (temp_addr != 0) {
-                queue.push_back(std::pair<uint64_t, physical_addr>(ppair.first + 1, temp_addr));
-            }
-//            } else {
-//                queue.push_back(std::pair<uint64_t, physical_addr>(ppair.first + 1, -1));
-//            }
-        }
-        queue.push_back(std::pair<uint64_t, physical_addr>(ppair.first + 1, -1));
-    }
-    print_BFS( lastdepth, queue );
+    print_BFS(queue, _file );
 }
 
 #endif
@@ -257,7 +239,8 @@ int VMwrite(uint64_t virtualAddress, word_t value) {
     auto V = std::vector<std::pair<uint64_t, physical_addr>>(  );
     V.push_back(u);
     std::cout << "Depth:" <<TABLES_DEPTH << " page size:"<< PAGE_SIZE<<"\n\n\n\n\n\n";
-    print_BFS(0, V);
+    std::ofstream _file ("test_plot.txt", std::ios_base::app);
+    print_BFS(V, _file);
     std::cout << "\n\n\n\n\n\n";
 #endif
 
