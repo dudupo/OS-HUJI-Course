@@ -177,6 +177,7 @@ void findFreeTable( uint64_t depth, physical_addr current_addr, temp_type & free
     log()
     if ( depth >= TABLES_DEPTH)
         return;
+        
     physical_addr temp_addr = 0;
     for (uint64_t i = 0; i < PAGE_SIZE && (freeFrame == -1); ++i) {
         PMread(current_addr * PAGE_SIZE + i, (word_t *) &temp_addr);
@@ -194,6 +195,36 @@ void findFreeTable( uint64_t depth, physical_addr current_addr, temp_type & free
 }
 
 
+/* 
+    still not consider the paritity of the cell. (last element).
+*/
+void find_max_weight_node( uint64_t depth, uint64_t addr, uint64_t & max_weight_addr , uint64_t weight , uint64_t & max_weight ) {
+    if ( depth < TABLES_DEPTH ) {
+        physical_addr temp_addr = 0;
+        int parity = 0; 
+
+        for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
+            PMread(addr * PAGE_SIZE + i, (word_t *) &temp_addr);
+            if (temp_addr != 0) {
+                find_max_weight_node( depth +  1 , max_weight_addr, temp_addr, 
+                    weight + (temp_addr & 1) * WEIGHT_ODD +
+                        ( (temp_addr ^ 1) & 1 ) * WEIGHT_EVEN , max_weight );
+            }
+        }
+        if ( weight > max_weight){
+            max_weight = weight;
+            max_weight_addr = addr;
+        }
+    }
+}
+
+void evicte( ) {
+    log()
+    uint64_t max_weight_addr, max_weight;
+    find_max_weight_node( 0, 0, max_weight_addr, 0 , max_weight );
+    PMwrite(max_weight_addr, 0);
+}
+
 int NewNode ( physical_addr addr, uint64_t frame ) {
     log()
     printf( "[DEBUG] addr %d, frame : %d, \n", addr, frame );
@@ -202,25 +233,39 @@ int NewNode ( physical_addr addr, uint64_t frame ) {
     return 1;
 }
 
+
+
+
+
 struct AddressState  getPAddr(uint64_t virtualAddress){
     log()
-    // virtualAddress = virtualAddress >> OFFSET_WIDTH;
+
+
+
     struct AddressState val = {0,0};
+    
+    // should initalize to -1. BUG;
     val = search(virtualAddress);
+    
     for  ( ; val.nextaddr  == -1 ; val = search(virtualAddress) )  {
 
         physical_addr emptyframe = -1;
         // after initialize new node, the new should point to it's perent
-        findFreeTable( 0, 0 ,emptyframe  );
+        findFreeTable( 0, 0 ,emptyframe);
+        
         if ( emptyframe == -1 ) {
             // PMwrite(val.addr, 0 );
-            emptyframe = getmax_frame_index_DFS(0, 0 );
+            emptyframe = getmax_frame_index_DFS(0, 0);
             if (emptyframe >= NUM_FRAMES) {
-                //evict!
+                // evicte();
+                emptyframe--;
             }
         }
+        // else {
         NewNode(val.addr, emptyframe );
-        // PMwrite(val.addr, val.addr / PAGE_SIZE );
+            
+        //     PMwrite(val.addr, val.addr / PAGE_SIZE );
+        // }
     }
 
     return val;
