@@ -76,7 +76,7 @@ struct Path get_path(uint64_t virtualAddress) {
         ret.paths[TABLES_DEPTH - i] = virtualAddress & (PAGE_SIZE-1);     
         i++;
     }
-    for (int i = 0; i <= TABLES_DEPTH; ++i){
+    for (int i = 0; i <= TABLES_DEPTH; ++i) {
         std::cout << ret.paths[i] << "\n";
     }
     return ret;
@@ -177,7 +177,7 @@ void findFreeTable( uint64_t depth, physical_addr current_addr, temp_type & free
     log()
     if ( depth >= TABLES_DEPTH)
         return;
-        
+
     physical_addr temp_addr = 0;
     for (uint64_t i = 0; i < PAGE_SIZE && (freeFrame == -1); ++i) {
         PMread(current_addr * PAGE_SIZE + i, (word_t *) &temp_addr);
@@ -187,8 +187,11 @@ void findFreeTable( uint64_t depth, physical_addr current_addr, temp_type & free
                 PMwrite(current_addr * PAGE_SIZE + i, 0);
                 return;
             }
-            else{
-            findFreeTable( depth +1, temp_addr, freeFrame );
+            else { 
+                findFreeTable( depth +1, temp_addr, freeFrame );
+                if (freeFrame != -1 ) {
+                    return;
+                }
             }
         }
     }
@@ -222,14 +225,15 @@ void evicte( ) {
     log()
     uint64_t max_weight_addr, max_weight;
     find_max_weight_node( 0, 0, max_weight_addr, 0 , max_weight );
+    printf( "[DEBUG] addr %d, weight : %d, \n", max_weight_addr, max_weight );
     PMwrite(max_weight_addr, 0);
 }
 
 int NewNode ( physical_addr addr, uint64_t frame ) {
     log()
     printf( "[DEBUG] addr %d, frame : %d, \n", addr, frame );
-    PMwrite( addr, frame);
 
+    PMwrite( addr, frame);
     return 1;
 }
 
@@ -257,7 +261,7 @@ struct AddressState  getPAddr(uint64_t virtualAddress){
             // PMwrite(val.addr, 0 );
             emptyframe = getmax_frame_index_DFS(0, 0);
             if (emptyframe >= NUM_FRAMES) {
-                // evicte();
+                evicte();
                 emptyframe--;
             }
         }
@@ -267,7 +271,6 @@ struct AddressState  getPAddr(uint64_t virtualAddress){
         //     PMwrite(val.addr, val.addr / PAGE_SIZE );
         // }
     }
-
     return val;
 }
 
@@ -286,8 +289,7 @@ int VMread(uint64_t virtualAddress, word_t* value) {
 
 int VMwrite(uint64_t virtualAddress, word_t value) {
     struct AddressState val = getPAddr( virtualAddress );
-
-    // last step
+    
     PMwrite(
         convert( virtualAddress &  (PAGE_SIZE-1) , val.addr),  value);
     printf("[DEBUG] write addr:  %d, the val: %d\n", val.addr, value);
