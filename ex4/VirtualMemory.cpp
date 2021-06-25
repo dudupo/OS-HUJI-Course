@@ -113,7 +113,6 @@ void print_BFS(std::vector< std::pair<physical_addr,  physical_addr>> & queue, s
 // not max, claculate the size of the tree.
 uint64_t maxFrame(uint64_t depth, physical_addr current_addr) {
     uint64_t _max_frame = 1;
-    log()
     if (depth < TABLES_DEPTH) {
         word_t temp_addr = 0;
         for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
@@ -126,9 +125,8 @@ uint64_t maxFrame(uint64_t depth, physical_addr current_addr) {
     }
     return _max_frame;
 }
-
-void findFreeTable(uint64_t depth, physical_addr current_addr, temp_type &freeFrame) {
-    log()
+// dudu : safe frame, is the frame we should enter to it, the next node.
+void findFreeTable(uint64_t depth, physical_addr current_addr, temp_type &freeFrame ) {
     if (depth >= TABLES_DEPTH)
         return;
     physical_addr temp_addr = 0;
@@ -147,7 +145,7 @@ void findFreeTable(uint64_t depth, physical_addr current_addr, temp_type &freeFr
 }
 
 struct PageFrame {
-    physical_addr father;
+    physical_addr father ;
     uint64_t pAddr;
     uint64_t pageNum;
     uint64_t weight;
@@ -187,7 +185,6 @@ void findMaxFrameWeight(uint64_t depth,struct PageFrame cur,struct PageFrame& ma
             std::cout<<"weight after reading: "<< cur.weight<<std::endl;
             findMaxFrameWeight(depth + 1, cur, max);
 
-
         }
     }
 
@@ -201,8 +198,38 @@ uint64_t evict() {
     cur.pAddr = 0,cur.pageNum = 0,cur.weight = WEIGHT_EVEN,max.weight = 0,max.pAddr = 0, max.pageNum = 0 ;
     findMaxFrameWeight(0, cur, max);
     std::cout<< "evicting " << max.pageNum <<" with weight of " << max.weight <<std::endl;
+    std::cout<< "evicting " << max.pAddr <<" num of pages " << NUM_PAGES <<std::endl;
     PMevict(max.pAddr, max.pageNum);
-    PMwrite(max.father, 0);
+
+    clearTable(max.pAddr);
+    
+    // uint64_t i =  (max.pageNum << OFFSET_WIDTH)
+    std::cout<< " max.father " << max.father << " num of pages " << NUM_PAGES <<std::endl;
+    PMwrite(max.father , 0 );
+    physical_addr temp_perent = max.pAddr / PAGE_SIZE;
+    physical_addr temp_current = max.pAddr;
+    log();
+    while ( temp_perent > 0 ) {
+        int flag = 0; 
+        word_t temp_word;
+        printf("[DEBUG] %d\n",  temp_perent);
+        for ( int i = 0; i < PAGE_SIZE; ++i) {
+            if ( convert(i, temp_perent) != temp_current ) {
+                PMread( convert(i, temp_perent) , &temp_word );
+                flag = flag | temp_word;
+            }            
+        }
+        if (!flag) {
+            PMwrite(temp_perent, 0 ); 
+            temp_current = temp_perent;
+            temp_perent /= PAGE_SIZE;
+        }
+        else{
+            temp_perent = 0;
+        }
+    }
+
+    // PMwrite(max.pAddr , 0);
     return max.pAddr;
 }
 
@@ -210,8 +237,6 @@ int NewNode(physical_addr addr, uint64_t frame) {
     log()
     printf("[DEBUG] addr %d, frame : %d, \n", addr, frame);
     PMwrite(addr, frame);
-
-    PMwrite( addr, frame);
     return 1;
 }
 
@@ -220,6 +245,16 @@ struct AddressState search(Path offsets) {
     struct AddressState ret = {0, 0};
     word_t qal = 0;
     for (int i = 0; i < TABLES_DEPTH; i++) {
+        
+
+        //handle the case, the user ask for illegal addresses.
+        if (convert(offsets.paths[i], ret.addr) >= RAM_SIZE ) {
+            ret.addr = convert(offsets.paths[i], ret.addr);
+            std::cout << " ret.addr " << ret.addr << "\n"; 
+            ret.nextaddr = -1; 
+            return ret;    
+        }
+
         PMread(convert(offsets.paths[i], ret.addr), &qal);
         ret.depth = i;
         if (qal == 0) {
@@ -232,9 +267,29 @@ struct AddressState search(Path offsets) {
             ret.addr = qal;
         }
     }
-    ret.nextaddr = qal;
+    ret.addr = qal;
     return ret;
 }
+
+
+// void clean_path_to_root( uint64_t addr, uint64_t depth) {
+
+//     if (addr == 0 )
+//         return;
+    
+//     if ( depth < TABLES_DEPTH && tableIsClear( addr / PAGE_SIZE) ) {
+        
+//     }
+//     clean_path_to_root( addr / PAGE_SIZE , depth - 1);
+// }
+
+
+// void clean(  uint64_t addr ) {
+//     uint64_t perent = addr / PAGE_SIZE;
+//     uint64_t offset = addr & (PAGE_SIZE - 1);
+
+
+// }
 
 
 // chaya mushka's func:
@@ -243,20 +298,38 @@ struct AddressState getPAddr(uint64_t virtualAddress) {
     physical_addr addr;
     struct Path path = get_path(virtualAddress);
     struct AddressState val = search(path);
+    
     // should initalize to -1. BUG;
     for (; val.nextaddr == -1; val = search(path)) {
+        
+        // handle the case of illegal address.
+        if (val.addr >= RAM_SIZE) {
+            return val;
+        }
+    
         std::cout << "DEPTH:" <<val.depth << "\n";
         physical_addr emptyframe = -1;
         // after initialize new node, the new should point to it's perent
+        
+        // TODO : BUG where '(val.addr / PAGE_SIZE) = 0', excpected to infinty loop.   
         PMwrite(val.addr, val.addr / PAGE_SIZE); //TODO maybe no need?
         findFreeTable(0, 0, emptyframe);
+        
+        
+        
         PMwrite(val.addr, 0); // TODO maybe no need?
         if (emptyframe == -1) {
             emptyframe = maxFrame(0, 0);
             if (emptyframe >= NUM_FRAMES) {
                 emptyframe = evict();
+                // PMwrite(emptyframe, 0);
+                // PMwrite(val.addr, val.addr / PAGE_SIZE);
+                // findFreeTable(0, 0, emptyframe);
+                // PMwrite(val.addr, 0); // TODO maybe no need?
 
             }
+
+            // continue;
         }
         // else {
         NewNode(val.addr, emptyframe);
@@ -275,8 +348,16 @@ struct AddressState getPAddr(uint64_t virtualAddress) {
 
 int VMread(uint64_t virtualAddress, word_t *value) {
     struct AddressState val = getPAddr(virtualAddress);
+    
+    if (val.addr >= RAM_SIZE ){
+        printf("[DEBUG] illegal address\n");    
+        return 0;
+    }
 
-    printf("[DEBUG] VMread addr:  %d,\n", val.addr);
+    printf("[DEBUG] VMread addr:  %d,\n", convert(virtualAddress & (PAGE_SIZE - 1), val.addr));
+
+    
+
     // last step
     PMread(
             convert(virtualAddress & (PAGE_SIZE - 1), val.addr),
@@ -288,7 +369,11 @@ int VMread(uint64_t virtualAddress, word_t *value) {
 int VMwrite(uint64_t virtualAddress, word_t value) {
     struct AddressState val = getPAddr(virtualAddress);
 
-
+     
+    if (val.addr >= RAM_SIZE ){
+        printf("[DEBUG] illegal address\n");    
+        return 0;
+    }
     // last step
     PMwrite(
             convert(virtualAddress & (PAGE_SIZE - 1), val.addr), value);
