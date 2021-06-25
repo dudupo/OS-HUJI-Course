@@ -2,51 +2,41 @@
 #include "PhysicalMemory.h"
 
 #include <cstdio>
-#include <iostream>
 
+#include <cmath>
 
 #define DEBUG
 
 #ifdef DEBUG
-#define log()\ 
+
+#include <iostream>
+
+#define log()\
     printf( "[DEBUG] %s \n", __FUNCTION__ );
 #endif
 
 
 typedef uint64_t physical_addr;
 typedef uint64_t temp_type;
+// tuple
+struct AddressState {
+    physical_addr addr;
+    physical_addr nextaddr;
+    uint64_t depth;
+};
 
-int toDec(uint64_t index){
-    int dec_value = 0;
-    int base = 1;
-    uint64_t temp = index;
-    while (temp > 0) {
-        int last_digit = temp % 10;
-        temp = temp / 10;
-        dec_value += last_digit * base;
-        base *= 2;
-    }
-    return dec_value;
-}
-uint64_t inline max( uint64_t a , uint64_t b) {
-    return a > b ? a : b;
-}
 
-bool tableIsClear( uint64_t frameIndex ){
+bool tableIsClear(uint64_t frameIndex) {
     word_t val = 0;
 
     for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
-      PMread( (frameIndex * PAGE_SIZE) + i, &val);
-      if(val == 0){
-        return false;
-      }
+        PMread((frameIndex * PAGE_SIZE) + i, &val);
+        if (val != 0) {
+            return false;
+        }
     }
     return true;
 }
-
-
-
-
 
 
 void clearTable(uint64_t frameIndex) {
@@ -54,16 +44,15 @@ void clearTable(uint64_t frameIndex) {
         PMwrite((frameIndex * PAGE_SIZE) + i, 0);
     }
 }
+
 void VMinitialize() {
     clearTable(0);
 }
 
 struct Path {
-    physical_addr paths[TABLES_DEPTH+1]; 
+    physical_addr paths[TABLES_DEPTH + 1];
 };
 
-
-#include <cmath>
 
 struct Path get_path(uint64_t virtualAddress) {
 
@@ -71,57 +60,23 @@ struct Path get_path(uint64_t virtualAddress) {
     struct Path ret;
     // ret.paths[TABLES_DEPTH]  = virtualAddress & WORD_WIDTH;
     // virtualAddress >> WORD_WIDTH;
-    for (int i = 0 ; i <= TABLES_DEPTH; virtualAddress >>= OFFSET_WIDTH ) {
-        std::cout << "virtualAddress : " <<  virtualAddress << "\n";
-        ret.paths[TABLES_DEPTH - i] = virtualAddress & (PAGE_SIZE-1);     
+    virtualAddress >>= OFFSET_WIDTH;
+    for (int i = 0; i < TABLES_DEPTH; virtualAddress >>= OFFSET_WIDTH) {
+        std::cout << "virtualAddress : " << virtualAddress << "\n";
+        ret.paths[TABLES_DEPTH - i-1] = virtualAddress & (PAGE_SIZE - 1);
         i++;
     }
-    for (int i = 0; i <= TABLES_DEPTH; ++i) {
+    // DEBUG:
+    for (int i = 0; i < TABLES_DEPTH; ++i) {
         std::cout << ret.paths[i] << "\n";
     }
     return ret;
 }
 
-physical_addr convert( physical_addr offset, physical_addr addr)
-{
-    log()
-    // printf("frame: %d \n", addr);
-    // printf("offset: %lu \n", offset);
-    printf("total: %llu \n", addr * PAGE_SIZE + offset);
+inline physical_addr convert(physical_addr offset, physical_addr addr) {
     return addr * PAGE_SIZE + offset;
 }
 
-
-// tuple
-struct AddressState {
-    physical_addr addr;
-    physical_addr nextaddr;
-};
-
-struct AddressState search(uint64_t virtualAddress) {
-    struct AddressState ret = { 0, 0};
-    word_t qal = 0;
-    uint64_t temp_add = virtualAddress;
-    
-    struct Path offsets = get_path( virtualAddress );
-    
-    for ( int i = 0 ; i < TABLES_DEPTH; i++ ) {
-        
-        PMread(convert(offsets.paths[i],ret.addr), &qal );        
-        if ( qal == 0 ) {
-            log()
-            // pathch, should remove.
-            ret.addr = convert(offsets.paths[i],ret.addr);
-            ret.nextaddr = -1;
-            return ret;
-        }
-        else{
-            ret.addr = qal;
-        }
-    }
-    ret.nextaddr = qal;
-    return ret;
-}
 
 
 // #define BFS
@@ -156,143 +111,188 @@ void print_BFS(std::vector< std::pair<physical_addr,  physical_addr>> & queue, s
 #endif
 
 // not max, claculate the size of the tree.
-uint64_t getmax_frame_index_DFS( uint64_t depth, physical_addr current_addr ) {
-    uint64_t _max_frame  = 1;
+uint64_t maxFrame(uint64_t depth, physical_addr current_addr) {
+    uint64_t _max_frame = 1;
     log()
-    if ( depth < TABLES_DEPTH) {
+    if (depth < TABLES_DEPTH) {
         word_t temp_addr = 0;
-        for ( uint64_t i = 0 ; i < PAGE_SIZE; ++i ) {
-            PMread( current_addr* PAGE_SIZE + i, &temp_addr);
-            if ( temp_addr != 0 ) {
-                _max_frame += getmax_frame_index_DFS( depth+1,  (physical_addr) temp_addr );
-                printf( "[DEBUG] frame : %lu, cur_addr : %d \n", _max_frame, temp_addr );
+        for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
+            PMread(current_addr * PAGE_SIZE + i, &temp_addr);
+            if (temp_addr != 0) {
+                _max_frame += maxFrame(depth + 1, (physical_addr) temp_addr);
+
             }
         }
     }
-    printf( "[DEBUG] frame : %lu, \n", _max_frame );
     return _max_frame;
 }
 
-void findFreeTable( uint64_t depth, physical_addr current_addr, temp_type & freeFrame ) {
+void findFreeTable(uint64_t depth, physical_addr current_addr, temp_type &freeFrame) {
     log()
-    if ( depth >= TABLES_DEPTH)
+    if (depth >= TABLES_DEPTH)
         return;
-
     physical_addr temp_addr = 0;
     for (uint64_t i = 0; i < PAGE_SIZE && (freeFrame == -1); ++i) {
-        PMread(current_addr * PAGE_SIZE + i, (word_t *) &temp_addr);
-        if (temp_addr != 0) {
-            if(tableIsClear(temp_addr)){
+        PMread(convert(i, current_addr), (word_t *) &temp_addr);
+        if (temp_addr != 0 && current_addr != temp_addr) { //
+            if (tableIsClear(temp_addr)) {
                 freeFrame = temp_addr;
-                PMwrite(current_addr * PAGE_SIZE + i, 0);
+                PMwrite(convert(i, current_addr), 0);
                 return;
-            }
-            else { 
-                findFreeTable( depth +1, temp_addr, freeFrame );
-                if (freeFrame != -1 ) {
-                    return;
-                }
+            } else {
+                findFreeTable(depth + 1, temp_addr, freeFrame);
             }
         }
     }
 }
+
+struct PageFrame {
+    physical_addr father;
+    uint64_t pAddr;
+    uint64_t pageNum;
+    uint64_t weight;
+};
 
 
 /* 
     still not consider the paritity of the cell. (last element).
 */
-void find_max_weight_node( uint64_t depth, uint64_t addr, uint64_t & max_weight_addr , uint64_t weight , uint64_t & max_weight ) {
-    if ( depth < TABLES_DEPTH ) {
-        physical_addr temp_addr = 0;
-        int parity = 0; 
+void findMaxFrameWeight(uint64_t depth,struct PageFrame cur,struct PageFrame& max ) {
+    // Take care of depth thing
 
-        for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
-            PMread(addr * PAGE_SIZE + i, (word_t *) &temp_addr);
-            if (temp_addr != 0) {
-                find_max_weight_node( depth +  1 , max_weight_addr, temp_addr, 
-                    weight + (temp_addr & 1) * WEIGHT_ODD +
-                        ( (temp_addr ^ 1) & 1 ) * WEIGHT_EVEN , max_weight );
-            }
+    if (depth == TABLES_DEPTH - 1 ){
+        cur.weight+= (cur.pageNum & 1)==1 ? WEIGHT_ODD : WEIGHT_EVEN;
+        if(cur.weight > max.weight){
+            std::cout<<"depth: "<< depth<<" frame number: "<< cur.pAddr<<" max weight: "<< cur.weight<<" max page track: "<< cur.pageNum<< std::endl;
+            max.weight = cur.weight;
+            max.pageNum = cur.pageNum;
+            max.pAddr = cur.pAddr;
+            max.father = cur.father;
+
         }
-        if ( weight > max_weight){
-            max_weight = weight;
-            max_weight_addr = addr;
+        return;
+    }
+
+    physical_addr temp_addr = 0;
+    for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
+
+        PMread(convert(i,cur.pAddr), (word_t *) &temp_addr);
+
+        if (temp_addr != 0) {
+            std::cout<<"depth: "<< depth<<" frame number: "<< cur.pAddr<<" before reading: "<< temp_addr<<std::endl;
+            cur.father = convert(i,cur.pAddr);
+            cur.pAddr = temp_addr;
+            cur.pageNum = (cur.pageNum << OFFSET_WIDTH) + i;
+            cur.weight += (temp_addr & 1) == 1 ?  WEIGHT_ODD : WEIGHT_EVEN;
+            std::cout<<"weight after reading: "<< cur.weight<<std::endl;
+            findMaxFrameWeight(depth + 1, cur, max);
+
+
         }
     }
+
 }
 
-void evicte( ) {
+
+uint64_t evict() {
     log()
-    uint64_t max_weight_addr, max_weight;
-    find_max_weight_node( 0, 0, max_weight_addr, 0 , max_weight );
-    printf( "[DEBUG] addr %d, weight : %d, \n", max_weight_addr, max_weight );
-    PMwrite(max_weight_addr, 0);
+
+    struct PageFrame cur, max ;
+    cur.pAddr = 0,cur.pageNum = 0,cur.weight = WEIGHT_EVEN,max.weight = 0,max.pAddr = 0, max.pageNum = 0 ;
+    findMaxFrameWeight(0, cur, max);
+    std::cout<< "evicting " << max.pageNum <<" with weight of " << max.weight <<std::endl;
+    PMevict(max.pAddr, max.pageNum);
+    PMwrite(max.father, 0);
+    return max.pAddr;
 }
 
-int NewNode ( physical_addr addr, uint64_t frame ) {
+int NewNode(physical_addr addr, uint64_t frame) {
     log()
-    printf( "[DEBUG] addr %d, frame : %d, \n", addr, frame );
+    printf("[DEBUG] addr %d, frame : %d, \n", addr, frame);
+    PMwrite(addr, frame);
 
     PMwrite( addr, frame);
     return 1;
 }
 
 
+struct AddressState search(Path offsets) {
+    struct AddressState ret = {0, 0};
+    word_t qal = 0;
+    for (int i = 0; i < TABLES_DEPTH; i++) {
+        PMread(convert(offsets.paths[i], ret.addr), &qal);
+        ret.depth = i;
+        if (qal == 0) {
+            log()
+            // pathch, should remove.
+            ret.addr = convert(offsets.paths[i], ret.addr);
+            ret.nextaddr = -1;
+            return ret;
+        } else {
+            ret.addr = qal;
+        }
+    }
+    ret.nextaddr = qal;
+    return ret;
+}
 
 
-
-struct AddressState  getPAddr(uint64_t virtualAddress){
+// chaya mushka's func:
+struct AddressState getPAddr(uint64_t virtualAddress) {
     log()
-
-
-
-    struct AddressState val = {0,0};
-    
+    physical_addr addr;
+    struct Path path = get_path(virtualAddress);
+    struct AddressState val = search(path);
     // should initalize to -1. BUG;
-    val = search(virtualAddress);
-    
-    for  ( ; val.nextaddr  == -1 ; val = search(virtualAddress) )  {
-
+    for (; val.nextaddr == -1; val = search(path)) {
+        std::cout << "DEPTH:" <<val.depth << "\n";
         physical_addr emptyframe = -1;
         // after initialize new node, the new should point to it's perent
-        findFreeTable( 0, 0 ,emptyframe);
-        
-        if ( emptyframe == -1 ) {
-            // PMwrite(val.addr, 0 );
-            emptyframe = getmax_frame_index_DFS(0, 0);
+        PMwrite(val.addr, val.addr / PAGE_SIZE); //TODO maybe no need?
+        findFreeTable(0, 0, emptyframe);
+        PMwrite(val.addr, 0); // TODO maybe no need?
+        if (emptyframe == -1) {
+            emptyframe = maxFrame(0, 0);
             if (emptyframe >= NUM_FRAMES) {
-                evicte();
-                emptyframe--;
+                emptyframe = evict();
+
             }
         }
         // else {
-        NewNode(val.addr, emptyframe );
-            
+        NewNode(val.addr, emptyframe);
         //     PMwrite(val.addr, val.addr / PAGE_SIZE );
         // }
+        std::cout << "using frame: "<< emptyframe << "!\n";
+        if(val.depth == (TABLES_DEPTH -1)){
+            std::cout << "CALLING RESTORE for page: " << (virtualAddress >> OFFSET_WIDTH) << "\n";
+            PMrestore(emptyframe, virtualAddress >> OFFSET_WIDTH);
+        }
     }
+    //chaya:
     return val;
 }
 
 
-int VMread(uint64_t virtualAddress, word_t* value) {
-    struct AddressState val = getPAddr( virtualAddress );
+int VMread(uint64_t virtualAddress, word_t *value) {
+    struct AddressState val = getPAddr(virtualAddress);
 
     printf("[DEBUG] VMread addr:  %d,\n", val.addr);
     // last step
-    PMread (
-         convert( virtualAddress &  (PAGE_SIZE-1), val.addr),
+    PMread(
+            convert(virtualAddress & (PAGE_SIZE - 1), val.addr),
             (word_t *) value);
 
     return 1;
 }
 
 int VMwrite(uint64_t virtualAddress, word_t value) {
-    struct AddressState val = getPAddr( virtualAddress );
-    
+    struct AddressState val = getPAddr(virtualAddress);
+
+
+    // last step
     PMwrite(
-        convert( virtualAddress &  (PAGE_SIZE-1) , val.addr),  value);
-    printf("[DEBUG] write addr:  %d, the val: %d\n", val.addr, value);
+            convert(virtualAddress & (PAGE_SIZE - 1), val.addr), value);
+    printf("[DEBUG] write addr:  %d, the val: %d\n", convert(virtualAddress & (PAGE_SIZE - 1), val.addr), value);
 
 
 #ifdef BFS
