@@ -35,9 +35,12 @@ inline uint64_t PMread_gate( uint64_t address ) {
     word_t val;    
     return PMread_gate( address, &val );
 }
-inline int PMwrite_gate( uint64_t address, word_t val ){
-    log()
-    std::cout << address << "\n";
+inline uint64_t PMwrite_gate( uint64_t address, word_t val ){
+    for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
+        if ( (PAGE_SIZE * val +i) < RAM_SIZE  ) {
+            PMwrite( (PAGE_SIZE * val +i), 0 );        
+        }
+    }
     PMwrite( address, val );
 }
 struct State {
@@ -97,7 +100,7 @@ struct State firstFrame(uint64_t virtualAddress) {
     log_state(ret);
     return ret;
 }
-void DFS( struct State state, int page_size,
+void DFS( struct State state, uint64_t page_size,
  void (func(struct State, void *)), void * params){ 
     log()
     std::cout << page_size << "\n";
@@ -118,9 +121,9 @@ void DFS(
     DFS(root_position, FIRST_STEP(), func, params);
 }
 void _getMaxFrame(struct State state, void * params){
-    (*((int *) params)) +=1;
+    (*((uint64_t *) params)) +=1;
     log()
-    std::cout << (int) * ((int*)params) <<"\n";
+    std::cout << (uint64_t) * ((uint64_t*)params) <<"\n";
 }
 
 uint64_t getMaxFrame( ){
@@ -133,12 +136,12 @@ uint64_t getPage(struct State state, uint64_t virtualAddress, int flag ) {
     
     uint64_t width = FIRST_STEP_WIDTH(); // + OFFSET_WIDTH; 
     
-    if (flag) {
+    if (getMaxFrame() > 1) {
         width += OFFSET_WIDTH;
     }
     struct State nextState; 
     int j = 0;
-    while(state.address < (NUM_FRAMES / getPAGE_SIZE()) ) {
+    while( (width < VIRTUAL_ADDRESS_WIDTH) && state.address < (NUM_FRAMES / getPAGE_SIZE()) ) {
         j++;
         log()
         
@@ -198,10 +201,15 @@ int VMread(uint64_t virtualAddress, word_t *value) {
 
     log()
     // last step
-    uint64_t _page = getPage(virtualAddress, 1);
+    uint64_t _page = getPage(virtualAddress, 0);
     std::cout  << " [READ]: " ;
     std::cout << (PAGE_SIZE * _page)  << "\n";
     std::cout << (PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1))  << "\n";
+
+
+    if ((PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1)) >= RAM_SIZE)
+        return 0; 
+
     PMread( (PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1)), value);
 
     return 1;
@@ -216,6 +224,10 @@ int VMwrite(uint64_t virtualAddress, word_t value) {
     std::cout  << " PAGE: " << _page << "\n";
     std::cout << (PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1))  << "\n";
     // PMrestore( _page, virtualAddress >> OFFSET_WIDTH  );
+
+    if ((PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1)) >= RAM_SIZE)
+        return 0; 
+
     PMwrite( (PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1)), value); 
     return 1;
 }
