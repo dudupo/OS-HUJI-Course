@@ -36,19 +36,19 @@ inline uint64_t PMread_gate( uint64_t address ) {
     return PMread_gate( address, &val );
 }
 inline uint64_t PMwrite_gate( uint64_t address, word_t val ){
-    for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
-        if ( (PAGE_SIZE * val +i) < RAM_SIZE  ) {
-            PMwrite( (PAGE_SIZE * val +i), 0 );        
-        }
-    }
+    // for (uint64_t i = 0; i < PAGE_SIZE; ++i) {
+    //     if ( (PAGE_SIZE * val +i) < RAM_SIZE  ) {
+    //         PMwrite( (PAGE_SIZE * val +i), 0 );        
+    //     }
+    // }
     PMwrite( address, val );
 }
 struct State {
-    uint64_t virtualAddress;
-    uint64_t address; 
+    uint64_t virtualAddress = 0x0000;
+    uint64_t address = 0x0000;
     
     // can be thought also as frame. 
-    uint64_t parant;
+    uint64_t parant = 0x0000;
 };
 
 void log_state(struct State state){
@@ -69,11 +69,8 @@ uint64_t advanceStete(
 struct State makeStep(
     struct State state, uint64_t direaction, uint64_t page_size) {
 
-    struct State nextState = { 
-        0,
-        0,
-        state.address
-    };
+    struct State nextState;
+    nextState.parant = state.address;
     
     nextState.address =\
      PMread_gate( advanceStete( state, direaction, page_size ) );
@@ -88,12 +85,15 @@ struct State makeStep(
     struct State state, uint64_t virtualAddress,
         uint64_t current_width, uint64_t step_width) {
 
+            log()
+            
+            std::cout << "[DEBUG] " << (virtualAddress >> (current_width - step_width)) <<"\n";
+
     return makeStep( state,
         (virtualAddress >> (current_width - step_width)) & (PAGE_SIZE - 1) );
 }
 struct State firstFrame(uint64_t virtualAddress) {
-    struct State root_position = { 0, 0 };
-    
+    struct State root_position; 
     struct State ret = makeStep( root_position, virtualAddress,
          VIRTUAL_ADDRESS_WIDTH,FIRST_STEP_WIDTH() );
     log()
@@ -106,18 +106,18 @@ void DFS( struct State state, uint64_t page_size,
     std::cout << page_size << "\n";
 
     // advanceStete(state, i, page_size) < NUM_FRAMES
-    for (uint64_t i = 0;  i < page_size &&
+    for (uint64_t i = 0;  (i < page_size) &&
          (advanceStete(state, i, page_size) < NUM_FRAMES); ++i) {
         
         struct State nextPosition = makeStep(state, i, page_size); 
-        if ( nextPosition.address )
+        if ( nextPosition.address != 0x0000 )
             DFS( nextPosition, PAGE_SIZE, func, params);
     } 
     func(state, params);
 }
 void DFS(
  void (func( struct State, void *)), void * params){ 
-    struct State root_position = { 0, 0 };
+    struct State root_position;
     DFS(root_position, FIRST_STEP(), func, params);
 }
 void _getMaxFrame(struct State state, void * params){
@@ -132,49 +132,85 @@ uint64_t getMaxFrame( ){
     return maxframe;
 }
 
-uint64_t getPage(struct State state, uint64_t virtualAddress, int flag ) {
+int could_advance( struct State state, uint64_t virtualAddress, uint64_t width, uint64_t page_size ) {
+    
+    return  ((virtualAddress >> (VIRTUAL_ADDRESS_WIDTH - width)) & ( page_size -1)) > 0;     
+}
+
+
+// uint64_t getPage(struct State state, uint64_t virtualAddress, int flag, uint64_t width ) {
+    
+//     if ( state.address )
+
+
+//     log()    
+//     log_state( state );
+
+
+//     nextState = makeStep(
+//             state,
+//             virtualAddress,
+//             VIRTUAL_ADDRESS_WIDTH,
+//             width);
+
+
+        
+
+// }
+
+
+uint64_t newFrame(struct State state, uint64_t virtualAddress, uint64_t width){
+    uint64_t getMaxFrame_t = getMaxFrame();
+    uint64_t direaction =  (virtualAddress >> (VIRTUAL_ADDRESS_WIDTH - width)) & ( PAGE_SIZE -1); 
+    std::cout << " [GET_MAX_FRAME] " << getMaxFrame_t << "\n"; 
+    std::cout << "[direaction]" << direaction << "\n";
+    PMwrite_gate(advanceStete(state, direaction, getPAGE_SIZE()), getMaxFrame_t);
+    return advanceStete(state, direaction, getPAGE_SIZE());
+}
+
+uint64_t getPage(struct State state0, uint64_t virtualAddress, int flag ) {
     
     uint64_t width = FIRST_STEP_WIDTH(); // + OFFSET_WIDTH; 
     
-    if (getMaxFrame() > 1) {
-        width += OFFSET_WIDTH;
-    }
-    struct State nextState; 
-    int j = 0;
-    while( (width < VIRTUAL_ADDRESS_WIDTH) && state.address < (NUM_FRAMES / getPAGE_SIZE()) ) {
-        j++;
-        log()
+    // first step
+    struct State state; 
+
+    struct State nextState = makeStep( state,
+                virtualAddress,
+                VIRTUAL_ADDRESS_WIDTH,
+                width);
+
+    
+    while ( width  < VIRTUAL_ADDRESS_WIDTH )  {
+        std::cout << "[ WIDTH ] " << width << ", " <<  VIRTUAL_ADDRESS_WIDTH << "\n";
         
         log_state( state );
+        if ( nextState.address == 0x0000  ) {
+            nextState.address = newFrame( state, virtualAddress, width); 
+        }
         
         
-        nextState = makeStep(
-            state,
-            virtualAddress,
-            VIRTUAL_ADDRESS_WIDTH,
-            width);
+        state = makeStep( state,
+                virtualAddress,
+                VIRTUAL_ADDRESS_WIDTH,
+                width);
+        
+        width += OFFSET_WIDTH;    
+        
+        log_state(state);
 
-
-        log_state( nextState );
-        if ( nextState.address == 0 ) {
-            uint64_t getMaxFrame_t = getMaxFrame();
-            uint64_t direaction =  (virtualAddress >> (VIRTUAL_ADDRESS_WIDTH - width)) & ( PAGE_SIZE -1); 
-            
-            std::cout << " [GET_MAX_FRAME] " << getMaxFrame_t << "\n"; 
-
-            
-            std::cout << "[direaction]" << direaction << "\n";
-            // new step
-            PMwrite_gate(advanceStete(state, direaction, getPAGE_SIZE()), getMaxFrame_t);
-        }
-
-        else {
-            
-            state = nextState;
-            width += OFFSET_WIDTH;
-        }
-    }
-    return state.address;
+        if ( width == VIRTUAL_ADDRESS_WIDTH )
+            return state.address;
+                    
+        nextState = makeStep( state,
+                virtualAddress,
+                VIRTUAL_ADDRESS_WIDTH,
+                width);
+        
+        log_state(nextState);
+    } 
+    
+    return nextState.address;
 }
 
 
@@ -196,21 +232,28 @@ void VMinitialize() {
 
 int VMread(uint64_t virtualAddress, word_t *value) {
 
-    if ( virtualAddress >=  VIRTUAL_MEMORY_SIZE )
+    if ( virtualAddress >=  VIRTUAL_MEMORY_SIZE ){
+        std::cout << "virtualAddress >=  VIRTUAL_MEMORY_SIZE\n";
         return 0;
-
+    }
     log()
     // last step
     uint64_t _page = getPage(virtualAddress, 0);
     std::cout  << " [READ]: " ;
     std::cout << (PAGE_SIZE * _page)  << "\n";
     std::cout << (PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1))  << "\n";
+    std::cout << " [PAGE_SIZE]: " << PAGE_SIZE << "\n";
+    std::cout << "[_page] " << _page << "\n";
+    std::cout << "[INIT_WIDTH] " << FIRST_STEP_WIDTH() << ", " << OFFSET_WIDTH << "\n";
 
+    uint64_t addr =  (PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1));
 
-    if ((PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1)) >= RAM_SIZE)
+    if (  addr >= RAM_SIZE ){
+        std::cout << "222 virtualAddress >=  VIRTUAL_MEMORY_SIZE\n";
         return 0; 
+    }
 
-    PMread( (PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1)), value);
+    PMread( addr, value);
 
     return 1;
 }
@@ -223,12 +266,14 @@ int VMwrite(uint64_t virtualAddress, word_t value) {
     uint64_t _page = getPage(virtualAddress, 0);
     std::cout  << " PAGE: " << _page << "\n";
     std::cout << (PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1))  << "\n";
+    
+    uint64_t addr =  (PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1));
     // PMrestore( _page, virtualAddress >> OFFSET_WIDTH  );
 
-    if ((PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1)) >= RAM_SIZE)
+    if ( addr >= RAM_SIZE)
         return 0; 
 
-    PMwrite( (PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1)), value); 
+    PMwrite(  addr  , value); 
     return 1;
 }
 
