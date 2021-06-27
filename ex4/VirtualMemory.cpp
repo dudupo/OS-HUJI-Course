@@ -199,18 +199,22 @@ uint64_t getPage(struct State state0, uint64_t virtualAddress, int flag ) {
         
         log_state(state);
 
-        if ( width == VIRTUAL_ADDRESS_WIDTH )
-            return state.address;
-                    
         nextState = makeStep( state,
                 virtualAddress,
                 VIRTUAL_ADDRESS_WIDTH,
                 width);
+
+        if ( width == VIRTUAL_ADDRESS_WIDTH ){
+            if ( nextState.address == 0x0000  ) {
+                nextState.address = newFrame( state, virtualAddress, width); 
+            }
+            return state.address;
+        }
         
         log_state(nextState);
     } 
     
-    return nextState.address;
+    return state.address;
 }
 
 
@@ -239,12 +243,17 @@ int VMread(uint64_t virtualAddress, word_t *value) {
     log()
     // last step
     uint64_t _page = getPage(virtualAddress, 0);
-    std::cout  << " [READ]: " ;
-    std::cout << (PAGE_SIZE * _page)  << "\n";
-    std::cout << (PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1))  << "\n";
-    std::cout << " [PAGE_SIZE]: " << PAGE_SIZE << "\n";
-    std::cout << "[_page] " << _page << "\n";
-    std::cout << "[INIT_WIDTH] " << FIRST_STEP_WIDTH() << ", " << OFFSET_WIDTH << "\n";
+
+    // if ( NUM_FRAMES ==  ) {
+    //     return _page;
+    // }
+
+    // std::cout  << " [READ]: " ;
+    // std::cout << (PAGE_SIZE * _page)  << "\n";
+    // std::cout << (PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1))  << "\n";
+    // std::cout << " [PAGE_SIZE]: " << PAGE_SIZE << "\n";
+    // std::cout << "[_page] " << _page << "\n";
+    // std::cout << "[INIT_WIDTH] " << FIRST_STEP_WIDTH() << ", " << OFFSET_WIDTH << "\n";
 
     uint64_t addr =  (PAGE_SIZE * _page) + (virtualAddress & (PAGE_SIZE-1));
 
